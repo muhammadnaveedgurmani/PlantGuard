@@ -1,5 +1,14 @@
 # 🌿 PlantGuard — AI Plant Disease Detection & Farming Assistant
 
+<div align="center">
+
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
+![Hono](https://img.shields.io/badge/Hono-E36002?style=flat-square&logo=hono&logoColor=white)
+![Cloudflare Workers](https://img.shields.io/badge/Cloudflare_Workers-F38020?style=flat-square&logo=cloudflareworkers&logoColor=white)
+![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=flat-square&logo=openai&logoColor=white)
+
+</div>
+
 ## Project Overview
 - **Name**: PlantGuard
 - **Goal**: A real, production-grade web app that helps farmers and plant
