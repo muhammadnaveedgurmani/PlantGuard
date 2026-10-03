@@ -1,25 +1,32 @@
 /* ============================================================
-   PlantGuard Design System — Responsive / Mobile (Phase 25)
+   PlantGuard Design System — Responsive / Mobile (3D PREMIUM)
    Mobile-first adjustments layered on top of base/components/layout.
    ============================================================ */
 
 /* ---- Mobile navbar: proper collapsible menu instead of wrapping ---- */
 @media (max-width: 860px) {
-  .navbar { padding: var(--space-3) var(--space-4); position: relative; }
+  .navbar {
+    top: var(--space-2);
+    width: calc(100% - 20px);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-xl);
+  }
   .navbar-toggle { display: inline-flex; align-items: center; justify-content: center; }
   .navbar-nav {
     position: absolute;
-    top: 100%; left: 0; right: 0;
+    top: calc(100% + 8px); left: 0; right: 0;
     flex-direction: column;
     align-items: stretch;
-    background: white;
-    border-bottom: 1px solid var(--surface-card-border);
-    box-shadow: var(--shadow-md);
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(18px);
+    border: 1px solid rgba(255,255,255,0.9);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
     padding: var(--space-2);
     display: none;
     gap: 2px;
   }
-  .navbar-nav.open { display: flex; }
+  .navbar-nav.open { display: flex; animation: pg-rise-in 220ms ease backwards; }
   .navbar-nav li { width: 100%; }
   .nav-link { width: 100%; justify-content: flex-start; text-align: left; }
 
@@ -27,14 +34,16 @@
   .hero-title { font-size: var(--font-size-3xl); }
   .hero-subtitle { margin-left: auto; margin-right: auto; }
   .hero-actions { justify-content: center; }
+  .hero-float-card.card-a { left: 0; }
+  .hero-float-card.card-b { right: 0; }
 
   .diag-layout { grid-template-columns: 1fr !important; }
 
   .page-container { padding: var(--space-4) var(--space-4) var(--space-10); }
-  .main-header { padding: var(--space-6) var(--space-4); }
+  .main-header { padding: var(--space-6) var(--space-4) var(--space-8); margin: 0 var(--space-2); }
   .main-header-title { font-size: var(--font-size-xl); }
 
-  .dashboard-primary-action { text-align: center; justify-content: center; }
+  .dashboard-primary-action { text-align: center; justify-content: center; padding: var(--space-6); }
   .dashboard-primary-action .cta-icon { display: none; }
 
   .chat-window { height: 70vh; min-height: 360px; }
@@ -47,6 +56,7 @@
 
   .report-page { padding: var(--space-4); }
   .report-header { flex-direction: column; align-items: flex-start; gap: var(--space-3); }
+  /* Chat widget mobile layout lives at the end of effects.css (cascade order) */
 }
 
 @media (max-width: 480px) {

@@ -1,6 +1,6 @@
 // Landing page — value proposition, how-it-works, features, trust/safety,
 // tech note, FAQ. No fake stats/testimonials per project constraints.
-import { footerHtml } from '../components/layout.js';
+import { footerHtml, leafArt3d } from '../components/layout.js';
 
 export function renderLanding(app) {
   app.innerHTML = `
@@ -9,8 +9,8 @@ export function renderLanding(app) {
       <section class="hero">
         <div class="hero-inner">
           <div class="hero-text">
-            <div class="hero-eyebrow">AI-Powered Plant Health</div>
-            <h1 class="hero-title">Know what's wrong with<br/>your plant in seconds</h1>
+            <div class="hero-eyebrow"><span class="pulse-dot"></span> AI-Powered Plant Health</div>
+            <h1 class="hero-title">Know what's wrong with<br/>your <span class="gradient-text">plant in seconds</span></h1>
             <p class="hero-subtitle">
               Upload a photo of a leaf and get an AI-powered assessment of plant health,
               possible disease, severity, and practical next steps &mdash; plus real weather-based
@@ -22,7 +22,17 @@ export function renderLanding(app) {
             </div>
           </div>
           <div class="hero-visual">
-            <div class="hero-visual-card"><i class="fas fa-seedling" aria-hidden="true"></i></div>
+            <div class="hero-scene">
+              ${leafArt3d()}
+              <div class="hero-float-card card-a">
+                <div class="fc-title"><i class="fas fa-circle-check" style="color:var(--color-success);" aria-hidden="true"></i> Diagnosis ready</div>
+                <div class="fc-sub">38 disease classes &middot; confidence shown</div>
+              </div>
+              <div class="hero-float-card card-b">
+                <div class="fc-title"><i class="fas fa-bolt" style="color:var(--color-accent-600);" aria-hidden="true"></i> No sign-up needed</div>
+                <div class="fc-sub">3 steps &middot; free to try</div>
+              </div>
+            </div>
           </div>
         </div>
       </section>

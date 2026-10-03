@@ -1,0 +1,281 @@
+/* ============================================================
+   PlantGuard Design System — 3D Effects & Floating Widget
+   Entrance animations, floating decorative blobs, dimensional
+   illustration helpers, and the floating chatbot widget.
+   Depends on tokens.css being loaded first.
+   ============================================================ */
+
+/* ============== ENTRANCE ANIMATIONS ============== */
+@keyframes pg-rise-in {
+  from { opacity: 0; transform: translateY(26px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pg-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pg-scale-in {
+  from { opacity: 0; transform: scale(0.94) translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Apply gentle staggered rise to page content blocks */
+.page-main .page-container > *,
+.page-main .container > * {
+  animation: pg-rise-in 520ms cubic-bezier(0.22, 0.9, 0.3, 1) backwards;
+}
+.page-main .page-container > *:nth-child(2) { animation-delay: 60ms; }
+.page-main .page-container > *:nth-child(3) { animation-delay: 120ms; }
+.page-main .page-container > *:nth-child(4) { animation-delay: 180ms; }
+.page-main .page-container > *:nth-child(5) { animation-delay: 240ms; }
+.page-main .page-container > *:nth-child(6) { animation-delay: 300ms; }
+
+.hero .hero-inner > * { animation: pg-rise-in 640ms cubic-bezier(0.22, 0.9, 0.3, 1) backwards; }
+.hero .hero-inner > *:nth-child(2) { animation-delay: 140ms; }
+
+/* ============== FLOATING DECORATIVE BLOBS ============== */
+.fx-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  pointer-events: none;
+  z-index: 0;
+}
+.fx-blob.blob-lime { background: rgba(163, 230, 53, 0.35); }
+.fx-blob.blob-emerald { background: rgba(79, 168, 122, 0.30); }
+.fx-blob.blob-cream { background: rgba(253, 243, 226, 0.8); }
+
+/* ============== 3D LEAF ART (inline SVG helpers) ============== */
+.fx-leaf-3d { filter: drop-shadow(0 24px 40px rgba(24, 89, 57, 0.35)); }
+
+/* ============================================================
+   FLOATING CHATBOT WIDGET
+   Fixed bottom-right on every view. High z-index. Slide-up panel
+   reuses the same /api/chat endpoints as the chatbot page.
+   ============================================================ */
+
+#pg-chat-widget-root {
+  position: fixed;
+  right: var(--space-5);
+  bottom: var(--space-5);
+  z-index: var(--z-chat-widget);
+  font-family: var(--font-family-base);
+}
+
+/* ---- Bubble button ---- */
+.pg-chat-bubble-btn {
+  position: relative;
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  background: var(--gradient-icon-tile);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow:
+    inset 0 2px 2px rgba(255, 255, 255, 0.35),
+    inset 0 -4px 8px rgba(10, 36, 23, 0.35),
+    0 8px 20px rgba(24, 89, 57, 0.45),
+    0 20px 44px rgba(24, 89, 57, 0.28);
+  transition: transform var(--transition-lift), box-shadow var(--transition-base);
+  animation: pg-bubble-attention 3.2s ease-in-out infinite;
+}
+.pg-chat-bubble-btn:hover {
+  transform: scale(1.08) rotate(-4deg);
+  animation-play-state: paused;
+}
+.pg-chat-bubble-btn:active { transform: scale(0.96); }
+@keyframes pg-bubble-attention {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+/* Pulsing attention ring */
+.pg-chat-bubble-btn::after {
+  content: '';
+  position: absolute; inset: -4px;
+  border-radius: 50%;
+  border: 2px solid var(--color-accent-400);
+  opacity: 0;
+  animation: pg-ring-pulse 2.6s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes pg-ring-pulse {
+  0% { transform: scale(0.85); opacity: 0.9; }
+  70% { transform: scale(1.25); opacity: 0; }
+  100% { transform: scale(1.25); opacity: 0; }
+}
+
+/* Unread dot */
+.pg-chat-unread-dot {
+  position: absolute;
+  top: 2px; right: 2px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #f87171, #c23b32);
+  border: 2.5px solid white;
+  box-shadow: 0 2px 8px rgba(194, 59, 50, 0.5);
+  animation: pg-dot-bounce 1.4s ease-in-out infinite;
+}
+@keyframes pg-dot-bounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.25); }
+}
+
+/* Avatar inside the bubble — swap via CHATBOT_AVATAR_SVG in chatWidget.js */
+.pg-chat-avatar {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.16);
+  box-shadow: inset 0 1px 2px rgba(255,255,255,0.4);
+}
+.pg-chat-avatar svg, .pg-chat-avatar img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ---- Chat panel ---- */
+.pg-chat-panel {
+  position: absolute;
+  right: 0;
+  bottom: 78px;
+  width: 380px;
+  max-width: calc(100vw - 48px);
+  height: 520px;
+  max-height: calc(100vh - 160px);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  outline: 1px solid var(--surface-card-border);
+  outline-offset: -1px;
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-xl);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform-origin: bottom right;
+  animation: pg-panel-in 300ms cubic-bezier(0.22, 0.9, 0.3, 1.12);
+}
+@keyframes pg-panel-in {
+  from { opacity: 0; transform: translateY(24px) scale(0.92); }
+  to { opacity: 1; transform: none; }
+}
+.pg-chat-panel.closing {
+  animation: pg-panel-out 220ms ease forwards;
+}
+@keyframes pg-panel-out {
+  to { opacity: 0; transform: translateY(20px) scale(0.94); }
+}
+
+.pg-chat-panel-header {
+  background: var(--gradient-header-band);
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.pg-chat-panel-header::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(200px 100px at 20% 0%, rgba(163,230,53,0.18), transparent 60%);
+  pointer-events: none;
+}
+.pg-chat-panel-header .pg-chat-avatar {
+  width: 42px; height: 42px;
+  border: 2px solid rgba(255,255,255,0.5);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  position: relative;
+}
+.pg-chat-panel-title { position: relative; flex: 1; }
+.pg-chat-panel-title strong { color: white; font-size: var(--font-size-sm); display: block; }
+.pg-chat-panel-title span {
+  color: rgba(255,255,255,0.85);
+  font-size: var(--font-size-xs);
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.pg-chat-online-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--color-accent-400);
+  box-shadow: 0 0 8px var(--color-accent-400);
+  display: inline-block;
+}
+.pg-chat-panel-close {
+  position: relative;
+  background: rgba(255,255,255,0.14);
+  border: 1px solid rgba(255,255,255,0.25);
+  color: white;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: var(--font-size-sm);
+  transition: all var(--transition-fast);
+}
+.pg-chat-panel-close:hover { background: rgba(255,255,255,0.28); transform: rotate(90deg); }
+
+.pg-chat-panel-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  background:
+    radial-gradient(240px 160px at 8% 0%, rgba(163,230,53,0.10), transparent 60%),
+    radial-gradient(240px 160px at 95% 100%, rgba(79,168,122,0.10), transparent 60%);
+}
+.pg-chat-panel-messages .chat-bubble { max-width: 88%; }
+
+.pg-chat-quick-replies {
+  display: flex; gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  overflow-x: auto;
+  flex-shrink: 0;
+  background: rgba(255,255,255,0.6);
+}
+.pg-chat-quick-reply {
+  white-space: nowrap;
+  background: rgba(255,255,255,0.9);
+  border: 1px solid var(--color-brand-200);
+  color: var(--color-brand-700);
+  border-radius: var(--radius-full);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+.pg-chat-quick-reply:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); background: white; }
+
+.pg-chat-panel-input {
+  display: flex; gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--surface-card-border);
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(10px);
+  flex-shrink: 0;
+}
+.pg-chat-panel-input input { flex: 1; margin: 0; }
+.pg-chat-panel-input .btn-icon { width: 44px; height: 44px; flex-shrink: 0; }
+
+/* Hide the floating widget on the dedicated chatbot page (avoid duplication) */
+body.pg-on-chatbot-page #pg-chat-widget-root { display: none; }
+
+/* ---- Mobile: bottom-sheet panel (kept here, after base rules, so it wins the cascade) ---- */
+@media (max-width: 860px) {
+  #pg-chat-widget-root { right: var(--space-4); bottom: var(--space-4); }
+  #pg-chat-widget-root .pg-chat-panel {
+    position: fixed;
+    right: var(--space-3);
+    left: var(--space-3);
+    bottom: 92px;
+    width: auto;
+    max-width: none;
+    height: 62vh;
+    max-height: calc(100vh - 170px);
+  }
+  #pg-chat-widget-root .pg-chat-bubble-btn { width: 58px; height: 58px; }
+}

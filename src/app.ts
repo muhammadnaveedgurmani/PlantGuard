@@ -50,6 +50,7 @@ const INDEX_HTML = `<!DOCTYPE html>
   <link href="/static/css/components.css" rel="stylesheet">
   <link href="/static/css/layout.css" rel="stylesheet">
   <link href="/static/css/responsive.css" rel="stylesheet">
+  <link href="/static/css/effects.css" rel="stylesheet">
 </head>
 <body>
   <a href="#app" class="skip-link">Skip to main content</a>

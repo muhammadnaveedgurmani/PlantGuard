@@ -3,6 +3,7 @@
 // handlers in server-rendered template strings (module scope isn't global
 // by default with type="module").
 import { registerRoute, navigate, startRouter } from './router.js';
+import { mountChatWidget } from './components/chatWidget.js';
 import { renderLanding } from './pages/landing.js';
 import { renderDashboard } from './pages/dashboard.js';
 import { renderDiagnosis } from './pages/diagnosis.js';
@@ -37,6 +38,13 @@ function getQueryParam(name) {
 }
 
 startRouter(app, () => renderLanding(app));
+
+// Floating chatbot widget: mounted once, persists across route changes.
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', mountChatWidget);
+} else {
+  mountChatWidget();
+}
 
 // Expose navigate() globally since inline onclick="navigate(...)" strings
 // are used throughout the server-rendered page HTML.
