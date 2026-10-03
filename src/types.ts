@@ -6,4 +6,6 @@ export type Bindings = {
   OPENAI_BASE_URL: string
   /** Phase 1 security: Bearer-token secret guarding /api/admin/* (except /health). */
   ADMIN_SECRET?: string
+  AI_MODEL?: string
+  AI_FALLBACK_MODEL?: string
 }

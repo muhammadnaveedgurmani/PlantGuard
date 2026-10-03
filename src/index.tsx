@@ -7,12 +7,16 @@ import weather from './routes/weather'
 import community from './routes/community'
 import library from './routes/library'
 import admin from './routes/admin'
+import { configureAiModels } from './lib/ai'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
 // Inject secrets from process env fallback isn't needed on Cloudflare;
 // OPENAI_API_KEY / OPENAI_BASE_URL are bound via wrangler secrets / vars.
 app.use('*', async (c, next) => {
+  // Allow the AI model to be overridden per-deployment via AI_MODEL /
+  // AI_FALLBACK_MODEL vars (defaults: gpt-5 / gpt-5-mini).
+  configureAiModels(c.env.AI_MODEL, c.env.AI_FALLBACK_MODEL)
   // Allow local dev (`npm run dev` with Vite) to pick up keys from process.env
   // In production these come from Cloudflare secrets (c.env is already populated).
   await next()
