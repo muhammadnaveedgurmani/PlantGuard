@@ -1,15 +1,84 @@
 // Shared layout pieces: navbar, footer, page header, back-link.
 // 3D PREMIUM EDITION: dimensional brand badge + inline 3D leaf art.
 
-const NAV_LINKS = [
-  ['#/home', 'Dashboard', 'fa-gauge-high'],
-  ['#/diagnosis', 'Diagnosis', 'fa-magnifying-glass'],
-  ['#/chatbot', 'AI Assistant', 'fa-comment-dots'],
-  ['#/weather', 'Weather', 'fa-cloud-sun'],
-  ['#/library', 'Library', 'fa-book'],
-  ['#/community', 'Community', 'fa-users'],
-  ['#/history', 'History', 'fa-clock-rotate-left']
+// App-shell navigation — PlantGuard is a WEB APP built around 6 core functions.
+// Persistent left sidebar on desktop (icon + label), bottom tab bar on mobile,
+// slim top bar with brand + key actions. Community is secondary (sidebar footer
+// + top bar icon). 3D PREMIUM styling preserved.
+
+const APP_NAV = [
+  { href: '#/diagnosis', label: 'Diagnosis',    icon: 'fa-magnifying-glass', match: ['#/diagnosis'] },
+  { href: '#/chatbot',   label: 'AI Assistant', icon: 'fa-comment-dots',     match: ['#/chatbot'] },
+  { href: '#/weather',    label: 'Weather',      icon: 'fa-cloud-sun',        match: ['#/weather'] },
+  { href: '#/library',    label: 'Library',      icon: 'fa-book',             match: ['#/library'] },
+  { href: '#/history',    label: 'History',      icon: 'fa-clock-rotate-left',match: ['#/history'] },
+  { href: '#/reports',    label: 'Reports',      icon: 'fa-file-lines',       match: ['#/reports', '#/report'] },
 ];
+
+function isNavActive(item, activePage) {
+  if (!activePage) return false;
+  return item.match.some((m) => activePage === m || activePage.startsWith(m + '/') || activePage.startsWith(m + '?'));
+}
+
+function sidebarItemHtml(item, activePage) {
+  const active = isNavActive(item, activePage);
+  return `
+  <li>
+    <button class="app-nav-item ${active ? 'active' : ''}" ${active ? 'aria-current="page"' : ''} onclick="navigate('${item.href}')">
+      <span class="app-nav-icon"><i class="fas ${item.icon}" aria-hidden="true"></i></span>
+      <span class="app-nav-label">${item.label}</span>
+    </button>
+  </li>`;
+}
+
+function tabbarItemHtml(item, activePage) {
+  const active = isNavActive(item, activePage);
+  return `
+  <button class="app-tab-item ${active ? 'active' : ''}" ${active ? 'aria-current="page"' : ''} onclick="navigate('${item.href}')" aria-label="${item.label}">
+    <i class="fas ${item.icon}" aria-hidden="true"></i>
+    <span>${item.label}</span>
+  </button>`;
+}
+
+/**
+ * App shell navigation. Same signature as before — every page calls
+ * navbarHtml(activePage) inside .page-shell, so no page template changes.
+ */
+export function navbarHtml(activePage) {
+  return `
+  <header class="app-topbar">
+    <button class="topbar-brand" onclick="navigate('#/home')" aria-label="PlantGuard home">
+      <span class="brand-badge">${leafMarkSvg()}</span> PlantGuard
+    </button>
+    <div class="topbar-actions">
+      <button class="topbar-icon-btn" onclick="navigate('#/community')" title="Farmer Community" aria-label="Farmer Community">
+        <i class="fas fa-users" aria-hidden="true"></i>
+      </button>
+      <button class="btn btn-primary btn-sm" onclick="navigate('#/diagnosis')">
+        <i class="fas fa-plus" aria-hidden="true"></i><span class="topbar-cta-text">New Diagnosis</span>
+      </button>
+    </div>
+  </header>
+  <aside class="app-sidebar" aria-label="Primary">
+    <button class="sidebar-brand" onclick="navigate('#/home')" aria-label="PlantGuard home">
+      <span class="brand-badge">${leafMarkSvg()}</span>
+      <span class="sidebar-brand-text">PlantGuard</span>
+    </button>
+    <nav aria-label="Core functions">
+      <ul class="app-nav-list">
+        ${APP_NAV.map((item) => sidebarItemHtml(item, activePage)).join('')}
+      </ul>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="sidebar-secondary-link" onclick="navigate('#/community')">
+        <i class="fas fa-users" aria-hidden="true"></i> Community
+      </button>
+    </div>
+  </aside>
+  <nav class="app-tabbar" aria-label="Core functions">
+    ${APP_NAV.map((item) => tabbarItemHtml(item, activePage)).join('')}
+  </nav>`;
+}
 
 /** Small 3D-style leaf mark used in the navbar brand badge. */
 export function leafMarkSvg() {
@@ -91,26 +160,6 @@ export function leafArt3d() {
   </svg>`;
 }
 
-export function navbarHtml(activePage) {
-  return `
-  <nav class="navbar" aria-label="Primary navigation">
-    <button class="navbar-brand" onclick="navigate('#/home')" aria-label="PlantGuard home">
-      <span class="brand-badge">${leafMarkSvg()}</span> PlantGuard
-    </button>
-    <ul class="navbar-nav" id="navbar-nav">
-      ${NAV_LINKS
-        .map(
-          ([href, label, icon]) =>
-            `<li><button class="nav-link ${href === activePage ? 'active' : ''}" ${href === activePage ? 'aria-current="page"' : ''} onclick="navigate('${href}')"><i class="fas ${icon}" aria-hidden="true"></i> ${label}</button></li>`
-        )
-        .join('')}
-    </ul>
-    <button class="navbar-toggle" id="navbar-toggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="navbar-nav">
-      <i class="fas fa-bars" aria-hidden="true"></i>
-    </button>
-  </nav>`;
-}
-
 export function footerHtml() {
   return `
   <footer class="site-footer">
@@ -140,11 +189,7 @@ export function mainHeader(title, subtitle) {
 }
 
 export function setupNavbarToggle() {
-  const toggle = document.getElementById('navbar-toggle');
-  const nav = document.getElementById('navbar-nav');
-  if (!toggle || !nav) return;
-  toggle.addEventListener('click', () => {
-    const open = nav.classList.toggle('open');
-    toggle.setAttribute('aria-expanded', String(open));
-  });
+  // No-op: the app shell uses a persistent sidebar (desktop) + bottom tab bar
+  // (mobile) instead of a collapsible top navbar. Kept so page modules that
+  // still call it keep working unchanged.
 }
