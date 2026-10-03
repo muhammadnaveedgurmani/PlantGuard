@@ -57,9 +57,14 @@ export function qs(id) {
 }
 
 export function renderMarkdownSafe(text) {
-  if (window.marked) {
+  // 2026-10-03 (H2 fix): AI output is attacker-influenceable (prompt
+  // injection), and marked passes raw HTML straight through. Sanitize the
+  // rendered HTML with DOMPurify. Fail closed: if DOMPurify did not load,
+  // render as escaped plain text rather than unsanitized HTML.
+  if (window.DOMPurify) {
     try {
-      return marked.parse(text);
+      const html = window.marked ? marked.parse(text) : `<p>${escapeHtml(text)}</p>`;
+      return DOMPurify.sanitize(html);
     } catch {
       return `<p>${escapeHtml(text)}</p>`;
     }

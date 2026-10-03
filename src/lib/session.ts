@@ -10,10 +10,15 @@ export function getOrCreateSessionId(c: Context): string {
   let sid = getCookie(c, SESSION_COOKIE)
   if (!sid) {
     sid = crypto.randomUUID()
+    // 2026-10-03: only mark the cookie Secure on HTTPS. Hardcoding
+    // secure:true broke sessions entirely on plain-HTTP deployments
+    // (browsers refuse to store Secure cookies over HTTP), which also
+    // silently disabled rate limiting there.
+    const isHttps = new URL(c.req.url).protocol === 'https:'
     setCookie(c, SESSION_COOKIE, sid, {
       httpOnly: true,
       sameSite: 'Lax',
-      secure: true,
+      secure: isHttps,
       path: '/',
       maxAge: 60 * 60 * 24 * 365 // 1 year
     })

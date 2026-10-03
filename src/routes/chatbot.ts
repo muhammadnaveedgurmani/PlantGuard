@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import type { Bindings } from '../types'
 import { getOrCreateSessionId } from '../lib/session'
 import { chatWithAssistant, type ChatMessage, type ToolCall } from '../lib/ai'
-import { checkRateLimit, rateLimitResponseBody, RATE_LIMITS } from '../lib/rateLimit'
+import { checkRateLimit, getClientIp, rateLimitResponseBody, RATE_LIMITS } from '../lib/rateLimit'
 import { detectLocationFromIp, geocodeCity, getRealWeatherForecast } from '../lib/weather'
 import { lookupKnowledge } from '../lib/knowledgeBase'
 
@@ -79,8 +79,8 @@ async function executeTool(
 chatbot.post('/send', async (c) => {
   const sessionId = getOrCreateSessionId(c)
 
-  // PHASE 1: rate limiting
-  const rl = checkRateLimit(sessionId, RATE_LIMITS.chat)
+  // PHASE 1: rate limiting (keyed on client IP + session cookie)
+  const rl = checkRateLimit(sessionId, getClientIp(c), RATE_LIMITS.chat)
   if (!rl.allowed) {
     return c.json(rateLimitResponseBody(rl, 'chat'), 429)
   }

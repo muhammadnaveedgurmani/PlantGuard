@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import type { Bindings } from '../types'
 import { generateCultivationGuide, generateDiseaseInfo } from '../lib/ai'
 import { getOrCreateSessionId } from '../lib/session'
-import { checkRateLimit, rateLimitResponseBody, RATE_LIMITS } from '../lib/rateLimit'
+import { checkRateLimit, getClientIp, rateLimitResponseBody, RATE_LIMITS } from '../lib/rateLimit'
 import { lookupKnowledge } from '../lib/knowledgeBase'
 
 const library = new Hono<{ Bindings: Bindings }>()
@@ -53,7 +53,7 @@ library.get('/cultivation', async (c) => {
 
   // Cache miss -- this will incur an AI call, so rate-limit it (Phase 1).
   const sessionId = getOrCreateSessionId(c)
-  const rl = checkRateLimit(sessionId, RATE_LIMITS.library)
+  const rl = checkRateLimit(sessionId, getClientIp(c), RATE_LIMITS.library)
   if (!rl.allowed) return c.json(rateLimitResponseBody(rl, 'AI library lookup'), 429)
 
   try {
@@ -125,7 +125,7 @@ library.get('/disease', async (c) => {
 
   // Cache miss -- this will incur an AI call, so rate-limit it (Phase 1).
   const sessionId = getOrCreateSessionId(c)
-  const rl = checkRateLimit(sessionId, RATE_LIMITS.library)
+  const rl = checkRateLimit(sessionId, getClientIp(c), RATE_LIMITS.library)
   if (!rl.allowed) return c.json(rateLimitResponseBody(rl, 'AI library lookup'), 429)
 
   try {

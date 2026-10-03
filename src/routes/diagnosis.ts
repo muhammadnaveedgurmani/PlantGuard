@@ -4,7 +4,7 @@ import { getOrCreateSessionId } from '../lib/session'
 import { diagnoseLeafImage, DIAGNOSIS_PROMPT_VERSION } from '../lib/ai'
 import { checkImageQuality, retakePhotoAdvice } from '../lib/imageQuality'
 import { validateDiagnosisRaw } from '../lib/validation'
-import { checkRateLimit, rateLimitResponseBody, RATE_LIMITS } from '../lib/rateLimit'
+import { checkRateLimit, getClientIp, rateLimitResponseBody, RATE_LIMITS } from '../lib/rateLimit'
 
 const diagnosis = new Hono<{ Bindings: Bindings }>()
 
@@ -17,7 +17,9 @@ diagnosis.post('/analyze', async (c) => {
   const sessionId = getOrCreateSessionId(c)
 
   // PHASE 1: rate limiting -- protect against AI cost abuse per session.
-  const rl = checkRateLimit(sessionId, RATE_LIMITS.diagnosis)
+  // Keyed on client IP + session cookie (2026-10-03): clearing cookies alone
+  // no longer resets the quota.
+  const rl = checkRateLimit(sessionId, getClientIp(c), RATE_LIMITS.diagnosis)
   if (!rl.allowed) {
     return c.json(rateLimitResponseBody(rl, 'diagnosis'), 429)
   }
@@ -249,9 +251,19 @@ diagnosis.delete('/history/:id', async (c) => {
   return c.json({ success: true })
 })
 
-// GET /api/diagnosis/image/:key -- serves the stored leaf image from R2
+// GET /api/diagnosis/image/:key -- serves the stored leaf image from R2.
+// 2026-10-03 (H3 fix): the image is only served to the session that created
+// the diagnosis, exactly like every other diagnosis endpoint (scoped by
+// session_id). Returns 404 for non-owners so key existence is not leaked.
 diagnosis.get('/image/*', async (c) => {
+  const sessionId = getOrCreateSessionId(c)
   const key = c.req.path.replace('/api/diagnosis/image/', '')
+  const owns = await c.env.DB.prepare(
+    `SELECT id FROM diagnoses WHERE image_key = ? AND session_id = ?`
+  )
+    .bind(key, sessionId)
+    .first()
+  if (!owns) return c.json({ error: 'Image not found.' }, 404)
   const obj = await c.env.IMAGES.get(key)
   if (!obj) return c.notFound()
   return new Response(obj.body, {

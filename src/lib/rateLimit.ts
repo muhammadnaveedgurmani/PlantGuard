@@ -1,13 +1,18 @@
 // PHASE 1: Session-based rate limiting for AI-cost-incurring endpoints.
 //
-// Design: in-memory sliding-window counter keyed by `${sessionId}:${bucket}`.
-// This is per-Worker-isolate (not globally distributed across all edge
-// locations), which is an intentional, pragmatic tradeoff for a lightweight
-// Cloudflare Pages app -- it still meaningfully throttles a single abusive
-// session/browser without needing a separate KV/D1 write on every single
-// request (which would add latency + cost to every legitimate AI call).
+// Design: in-memory sliding-window counters. Each request is checked against
+// a per-session bucket (`${clientIp}:${sessionId}:${bucket}`) AND a per-IP
+// abuse-backstop bucket (`${clientIp}:${bucket}`, 10x the session limit), so
+// deleting the `pg_session` cookie no longer resets the quota (2026-10-03
+// hardening). This is per-Worker-isolate (not globally distributed across all
+// tradeoff for a lightweight Cloudflare Pages app -- it still meaningfully
+// throttles a single abusive session/browser without needing a separate KV/D1
+// write on every single request (which would add latency + cost to every
+// legitimate AI call).
 // If stronger global guarantees are ever needed, swap the Map for a
 // Cloudflare KV-backed counter using the same interface.
+
+import type { Context } from 'hono'
 
 type Bucket = {
   count: number
@@ -53,29 +58,87 @@ export type RateLimitResult = {
 }
 
 /**
+ * Best-effort client IP for rate-limit keying. Prefers Cloudflare's
+ * CF-Connecting-IP, then the first entry of X-Forwarded-For. Never throws.
+ */
+export function getClientIp(c: Context): string {
+  const cfIp = c.req.header('CF-Connecting-IP')
+  if (cfIp) return cfIp.trim()
+  const xff = c.req.header('X-Forwarded-For')
+  if (xff) {
+    const first = xff.split(',')[0]?.trim()
+    if (first) return first
+  }
+  return 'unknown'
+}
+
+/**
  * Single shared rate-limit check/consume function used by every AI route,
  * so limiting logic is defined once (Phase 1: "do not duplicate rate-limit
  * logic unnecessarily").
+ *
+ * The quota is enforced on two keys:
+ *   1. `${clientIp}:${sessionId}:${bucket}` — per-browser quota (UX-friendly).
+ *   2. `${clientIp}:${bucket}` — per-IP abuse backstop, so clearing cookies
+ *      alone does not grant a fresh quota (2026-10-03 hardening).
+ * A request is allowed only if BOTH buckets allow it; both are consumed.
+ * The IP bucket uses a multiple of the per-session limit so legitimate
+ * shared-IP users (households, offices, mobile CGNAT) are not affected
+ * while cookie-deleting abuse is capped.
  */
-export function checkRateLimit(sessionId: string, config: RateLimitConfig): RateLimitResult {
-  sweepIfNeeded(config.windowMs)
-  const key = `${sessionId}:${config.bucket}`
-  const now = Date.now()
+const IP_BUCKET_MULTIPLIER = 10
+
+/** Non-consuming quota check, so denied requests don't burn quota. */
+function peekBucket(key: string, limit: number, windowMs: number, now: number): RateLimitResult {
+  const b = buckets.get(key)
+  if (!b || now - b.windowStartMs >= windowMs) {
+    return { allowed: true, remaining: limit, limit, resetAtMs: now + windowMs }
+  }
+  const resetAtMs = b.windowStartMs + windowMs
+  if (b.count >= limit) {
+    return { allowed: false, remaining: 0, limit, resetAtMs }
+  }
+  return { allowed: true, remaining: limit - b.count, limit, resetAtMs }
+}
+
+function consumeBucket(key: string, limit: number, windowMs: number, now: number): RateLimitResult {
   let b = buckets.get(key)
 
-  if (!b || now - b.windowStartMs >= config.windowMs) {
+  if (!b || now - b.windowStartMs >= windowMs) {
     b = { count: 0, windowStartMs: now }
     buckets.set(key, b)
   }
 
-  const resetAtMs = b.windowStartMs + config.windowMs
+  const resetAtMs = b.windowStartMs + windowMs
 
-  if (b.count >= config.limit) {
-    return { allowed: false, remaining: 0, limit: config.limit, resetAtMs }
+  if (b.count >= limit) {
+    return { allowed: false, remaining: 0, limit, resetAtMs }
   }
 
   b.count += 1
-  return { allowed: true, remaining: config.limit - b.count, limit: config.limit, resetAtMs }
+  return { allowed: true, remaining: limit - b.count, limit, resetAtMs }
+}
+
+export function checkRateLimit(sessionId: string, clientIp: string, config: RateLimitConfig): RateLimitResult {
+  sweepIfNeeded(config.windowMs)
+  const now = Date.now()
+
+  const sessionKey = `${clientIp}:${sessionId}:${config.bucket}`
+  const ipKey = `${clientIp}:${config.bucket}:ip`
+  const ipLimit = config.limit * IP_BUCKET_MULTIPLIER
+
+  // Probe both buckets BEFORE consuming, so a denied request does not burn
+  // quota on the other bucket.
+  const sessionProbe = peekBucket(sessionKey, config.limit, config.windowMs, now)
+  if (!sessionProbe.allowed) return sessionProbe
+  const ipProbe = peekBucket(ipKey, ipLimit, config.windowMs, now)
+  if (!ipProbe.allowed) return ipProbe
+
+  const sessionRes = consumeBucket(sessionKey, config.limit, config.windowMs, now)
+  const ipRes = consumeBucket(ipKey, ipLimit, config.windowMs, now)
+
+  // Report the tighter of the two remaining quotas.
+  return sessionRes.remaining <= ipRes.remaining ? sessionRes : ipRes
 }
 
 /** Builds a friendly, actionable 429 JSON body + headers for a rate-limited request. */
