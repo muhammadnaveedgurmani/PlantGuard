@@ -1,10 +1,10 @@
 import { Hono } from 'hono'
 import type { Bindings } from '../types'
-import { getOrCreateSessionId } from '../lib/session'
-import { diagnoseLeafImage, DIAGNOSIS_PROMPT_VERSION } from '../lib/ai'
-import { checkImageQuality, retakePhotoAdvice } from '../lib/imageQuality'
-import { validateDiagnosisRaw } from '../lib/validation'
-import { checkRateLimit, getClientIp, rateLimitResponseBody, RATE_LIMITS } from '../lib/rateLimit'
+import { getOrCreateSessionId } from '../utils/session'
+import { diagnoseLeafImage, DIAGNOSIS_PROMPT_VERSION } from '../ml/ai'
+import { checkImageQuality, retakePhotoAdvice } from '../ml/imageQuality'
+import { validateDiagnosisRaw } from '../ml/validation'
+import { checkRateLimit, getClientIp, rateLimitResponseBody, RATE_LIMITS } from '../utils/rateLimit'
 
 const diagnosis = new Hono<{ Bindings: Bindings }>()
 

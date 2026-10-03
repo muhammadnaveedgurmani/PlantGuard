@@ -1,7 +1,8 @@
 import type { Context } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
+import { SESSION_COOKIE_NAME } from '../config'
 
-const SESSION_COOKIE = 'pg_session'
+const SESSION_COOKIE = SESSION_COOKIE_NAME
 
 // Generates/retrieves an anonymous per-browser session id. No login is
 // required for PlantGuard; this id just scopes diagnosis history, chat

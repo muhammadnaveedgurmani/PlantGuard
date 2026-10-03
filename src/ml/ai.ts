@@ -18,6 +18,7 @@
 // has already failed.
 
 import { logAiCall, type AiRequestType } from './aiObservability'
+import { DEFAULT_AI_FALLBACK_MODEL, DEFAULT_AI_MODEL } from '../config'
 
 export type ChatMessage = {
   role: 'system' | 'user' | 'assistant' | 'tool'
@@ -50,7 +51,10 @@ export type ToolSchema = {
 // fallback is only used after the primary attempt fails.
 // Overridable per-deployment via AI_MODEL / AI_FALLBACK_MODEL env vars
 // (see configureAiModels, called from src/index.tsx middleware).
-const aiModels = { primary: 'gpt-5', fallback: 'gpt-5-mini' }
+// Overridable per-deployment via AI_MODEL / AI_FALLBACK_MODEL env vars
+// (see configureAiModels, called from the aiModelConfig middleware).
+// Defaults live in src/config.ts.
+const aiModels = { primary: DEFAULT_AI_MODEL, fallback: DEFAULT_AI_FALLBACK_MODEL }
 export function configureAiModels(primary?: string, fallback?: string) {
   if (primary && primary.trim()) aiModels.primary = primary.trim()
   if (fallback && fallback.trim()) aiModels.fallback = fallback.trim()

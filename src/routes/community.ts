@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Bindings } from '../types'
-import { getOrCreateSessionId } from '../lib/session'
+import { getOrCreateSessionId } from '../utils/session'
 
 const community = new Hono<{ Bindings: Bindings }>()
 

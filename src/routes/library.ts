@@ -1,9 +1,9 @@
 import { Hono } from 'hono'
 import type { Bindings } from '../types'
-import { generateCultivationGuide, generateDiseaseInfo } from '../lib/ai'
-import { getOrCreateSessionId } from '../lib/session'
-import { checkRateLimit, getClientIp, rateLimitResponseBody, RATE_LIMITS } from '../lib/rateLimit'
-import { lookupKnowledge } from '../lib/knowledgeBase'
+import { generateCultivationGuide, generateDiseaseInfo } from '../ml/ai'
+import { getOrCreateSessionId } from '../utils/session'
+import { checkRateLimit, getClientIp, rateLimitResponseBody, RATE_LIMITS } from '../utils/rateLimit'
+import { lookupKnowledge } from '../services/knowledgeService'
 
 const library = new Hono<{ Bindings: Bindings }>()
 

@@ -1,10 +1,10 @@
 import { Hono } from 'hono'
 import type { Bindings } from '../types'
-import { getOrCreateSessionId } from '../lib/session'
-import { chatWithAssistant, type ChatMessage, type ToolCall } from '../lib/ai'
-import { checkRateLimit, getClientIp, rateLimitResponseBody, RATE_LIMITS } from '../lib/rateLimit'
-import { detectLocationFromIp, geocodeCity, getRealWeatherForecast } from '../lib/weather'
-import { lookupKnowledge } from '../lib/knowledgeBase'
+import { getOrCreateSessionId } from '../utils/session'
+import { chatWithAssistant, type ChatMessage, type ToolCall } from '../ml/ai'
+import { checkRateLimit, getClientIp, rateLimitResponseBody, RATE_LIMITS } from '../utils/rateLimit'
+import { detectLocationFromIp, geocodeCity, getRealWeatherForecast } from '../services/weatherService'
+import { lookupKnowledge } from '../services/knowledgeService'
 
 const chatbot = new Hono<{ Bindings: Bindings }>()
 
