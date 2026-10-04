@@ -293,32 +293,46 @@ Respond ONLY with a single JSON object matching exactly this shape, no markdown,
 
 export async function diagnoseLeafImage(
   apiKey: string,
-  baseUrl: string,
+  _baseUrl: string,
   imageDataUrl: string,
   db?: D1Database,
   sessionId?: string | null
 ): Promise<{ raw: any; modelUsed: string; fallbackUsed: boolean }> {
-  const result = await callChatCompletionsRaw(
-    apiKey,
-    baseUrl,
-    [
-      { role: 'system', content: DIAGNOSIS_SYSTEM_PROMPT },
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: 'Analyze this plant leaf photo and return the JSON diagnosis.' },
-          { type: 'image_url', image_url: { url: imageDataUrl } }
-        ]
-      }
-    ],
-    true,
-    { db, requestType: 'diagnosis', promptVersion: DIAGNOSIS_PROMPT_VERSION, sessionId },
-    undefined,
-    true
-  )
+  // Gemini vision API for the low-confidence diagnosis fallback.
+  const match = imageDataUrl.match(/^data:(image\/[a-z+]+);base64,(.+)$/)
+  if (!match) throw new Error('Invalid image data URL')
+  const [, mimeType, b64] = match
 
-  if (!result.content) throw new Error('AI diagnosis returned no content')
-  return { raw: JSON.parse(result.content), modelUsed: result.modelUsed, fallbackUsed: result.fallbackUsed }
+  let res: Response
+  try {
+    res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: DIAGNOSIS_SYSTEM_PROMPT + '\n\nAnalyze this plant leaf photo and return the JSON diagnosis.' },
+              { inline_data: { mime_type: mimeType, data: b64 } }
+            ]
+          }],
+          generationConfig: { response_mime_type: 'application/json', maxOutputTokens: 2000 }
+        }),
+        signal: AbortSignal.timeout(60000)
+      }
+    )
+  } catch (e: any) {
+    throw new Error(`AI diagnosis network error: ${e?.message || e}`)
+  }
+  if (!res.ok) {
+    const t = await res.text().catch(() => '')
+    throw new Error(`AI diagnosis HTTP ${res.status}: ${t.slice(0, 200)}`)
+  }
+  const data = await res.json<any>()
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
+  if (!text) throw new Error('AI diagnosis returned no content')
+  return { raw: JSON.parse(text), modelUsed: 'gemini-3.8-flash', fallbackUsed: false }
 }
 
 /**
@@ -330,35 +344,49 @@ export async function diagnoseLeafImage(
  */
 export async function validateIsLeaf(
   apiKey: string,
-  baseUrl: string,
+  _baseUrl: string,
   imageDataUrl: string,
   db?: D1Database,
   sessionId?: string | null
 ): Promise<boolean> {
-  const result = await callChatCompletionsRaw(
-    apiKey,
-    baseUrl,
-    [
-      { role: 'system', content: 'You are an image filter. Reply with ONLY valid JSON: {"is_leaf": boolean}.' },
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: 'Does this photo show a plant leaf or plant part? Reply ONLY {"is_leaf": true} or {"is_leaf": false}.' },
-          { type: 'image_url', image_url: { url: imageDataUrl } }
-        ]
-      }
-    ],
-    true,
-    { db, requestType: 'leaf_gate', promptVersion: 'v1', sessionId },
-    undefined,
-    true
-  )
-  if (!result.content) throw new Error('Leaf gate returned no content')
+  // Gemini vision API (gemini-3.8-flash). imageDataUrl is "data:<mime>;base64,<data>".
+  const match = imageDataUrl.match(/^data:(image\/[a-z+]+);base64,(.+)$/)
+  if (!match) throw new Error('Invalid image data URL')
+  const [, mimeType, b64] = match
+
+  let res: Response
   try {
-    return JSON.parse(result.content).is_leaf === true
+    res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: 'Does this photo show a plant leaf or plant part? Reply ONLY {"is_leaf": true} or {"is_leaf": false}.' },
+              { inline_data: { mime_type: mimeType, data: b64 } }
+            ]
+          }],
+          generationConfig: { response_mime_type: 'application/json', maxOutputTokens: 50 }
+        }),
+        signal: AbortSignal.timeout(30000)
+      }
+    )
+  } catch (e: any) {
+    throw new Error(`Leaf gate network error: ${e?.message || e}`)
+  }
+  if (!res.ok) {
+    const t = await res.text().catch(() => '')
+    throw new Error(`Leaf gate HTTP ${res.status}: ${t.slice(0, 200)}`)
+  }
+  const data = await res.json<any>()
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
+  if (!text) throw new Error('Leaf gate returned no content')
+  try {
+    return JSON.parse(text).is_leaf === true
   } catch {
-    // Unparseable gate response: fail closed (treat as not a leaf).
-    return false
+    return /"is_leaf"\s*:\s*true/.test(text)
   }
 }
 

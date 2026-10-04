@@ -107,20 +107,39 @@ diagnosis.post('/analyze', async (c) => {
   let aiOutcome: { raw: any; modelUsed: string; fallbackUsed: boolean } | undefined
   let engine: 'cnn' | 'llm' = 'llm'
   let cnnRaw: ReturnType<typeof cnnLabelToDiagnosisRaw> = null
-  // Non-leaf filtering now happens client-side (green-pixel check in
-  // diagnosis.js) — the vision leaf gate was removed because no free vision
-  // API is currently reachable (Pollinations 400s on image input, Groq key
-  // has no vision model access). The client check catches food/faces/objects
-  // before any upload happens.
-  const visionKey = c.env.VISION_API_KEY || c.env.OPENAI_API_KEY
-  const visionBase = c.env.VISION_BASE_URL || c.env.OPENAI_BASE_URL
+  // LEAF GATE: Gemini vision checks the photo is actually a leaf before the
+  // CNN result is accepted. Client-side green check runs first (instant);
+  // this is the real AI verification. Fail OPEN on API error (trust the
+  // client check) so a Gemini outage doesn't block real leaves.
+  const geminiKey = c.env.GEMINI_API_KEY || ''
   if (cnnEligible) {
+    // LEAF GATE: Gemini vision checks the photo is actually a leaf before the
+    // CNN result is accepted. Client-side green check runs first (instant);
+    // this is the real AI verification. Fail OPEN on API error (trust the
+    // client check) so a Gemini outage doesn't block real leaves.
+    if (geminiKey) {
+      let isLeaf: boolean | null = null
+      try {
+        isLeaf = await validateIsLeaf(geminiKey, '', dataUrl, c.env.DB, sessionId)
+      } catch (e) {
+        console.error('[leaf-gate] Gemini error, failing open:', (e as Error)?.message?.slice(0, 120))
+      }
+      if (isLeaf === false) {
+        return c.json({
+          is_leaf: false,
+          message: 'This image does not appear to contain a plant leaf. Please upload a clear leaf photo.'
+        })
+      }
+    }
     // PRIMARY ENGINE: on-device CNN. No full LLM diagnosis call needed.
     cnnRaw = cnnLabelToDiagnosisRaw(cnnPrediction, cnnConfidence)
     engine = 'cnn'
   } else {
+    if (!geminiKey) {
+      return c.json({ error: 'AI diagnosis unavailable (vision API not configured).' }, 502)
+    }
     try {
-      aiOutcome = await diagnoseLeafImage(visionKey, visionBase, dataUrl, c.env.DB, sessionId)
+      aiOutcome = await diagnoseLeafImage(geminiKey, '', dataUrl, c.env.DB, sessionId)
     } catch (e: any) {
       return c.json({ error: `AI diagnosis failed: ${e.message || e}` }, 502)
     }

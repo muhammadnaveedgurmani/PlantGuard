@@ -10,6 +10,8 @@ export type Bindings = {
   VISION_BASE_URL?: string
   VISION_MODEL?: string
   VISION_FALLBACK_MODEL?: string
+  /** Google Gemini API key for vision (leaf gate + diagnosis fallback). */
+  GEMINI_API_KEY?: string
   /** Phase 1 security: Bearer-token secret guarding /api/admin/* (except /health). */
   ADMIN_SECRET?: string
   AI_MODEL?: string
