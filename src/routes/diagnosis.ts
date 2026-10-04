@@ -107,26 +107,14 @@ diagnosis.post('/analyze', async (c) => {
   let aiOutcome: { raw: any; modelUsed: string; fallbackUsed: boolean } | undefined
   let engine: 'cnn' | 'llm' = 'llm'
   let cnnRaw: ReturnType<typeof cnnLabelToDiagnosisRaw> = null
-  // Vision calls (leaf gate + diagnosis fallback) use the vision provider;
-  // text calls (chatbot, library) use the main OpenAI-compatible provider.
+  // Non-leaf filtering now happens client-side (green-pixel check in
+  // diagnosis.js) — the vision leaf gate was removed because no free vision
+  // API is currently reachable (Pollinations 400s on image input, Groq key
+  // has no vision model access). The client check catches food/faces/objects
+  // before any upload happens.
   const visionKey = c.env.VISION_API_KEY || c.env.OPENAI_API_KEY
   const visionBase = c.env.VISION_BASE_URL || c.env.OPENAI_BASE_URL
   if (cnnEligible) {
-    // LEAF GATE: the CNN is a closed-set classifier — it cannot say "not a
-    // plant", so a food photo would be misdiagnosed with high confidence.
-    // This tiny vision check runs before any CNN result is accepted.
-    let isLeaf = false
-    try {
-      isLeaf = await validateIsLeaf(visionKey, visionBase, dataUrl, c.env.DB, sessionId)
-    } catch {
-      isLeaf = false
-    }
-    if (!isLeaf) {
-      return c.json({
-        is_leaf: false,
-        message: 'This image does not appear to contain a plant leaf. Please upload a clear leaf photo.'
-      })
-    }
     // PRIMARY ENGINE: on-device CNN. No full LLM diagnosis call needed.
     cnnRaw = cnnLabelToDiagnosisRaw(cnnPrediction, cnnConfidence)
     engine = 'cnn'

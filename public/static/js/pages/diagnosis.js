@@ -95,6 +95,28 @@ function handleSelectedFile(file) {
   qs('diag-result').innerHTML = `<div class="empty-state"><i class="fas fa-microscope" aria-hidden="true"></i>Photo ready. Click "Analyze Leaf" to run AI diagnosis.</div>`;
 }
 
+/**
+ * Heuristic leaf check: sample the image pixels and measure how many are
+ * "leaf green" (green clearly dominant over red and blue). Real leaf photos
+ * are 25-70% green; food/faces/objects are usually under 8%.
+ */
+function looksLikeLeaf(imgEl) {
+  const SIZE = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = SIZE;
+  canvas.height = SIZE;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(imgEl, 0, 0, SIZE, SIZE);
+  const data = ctx.getImageData(0, 0, SIZE, SIZE).data;
+  let green = 0;
+  const total = SIZE * SIZE;
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i], g = data[i + 1], b = data[i + 2];
+    if (g > 70 && g > r + 25 && g > b + 25) green++;
+  }
+  return green / total >= 0.10;
+}
+
 const STAGES = [
   { key: 'upload', label: 'Uploading photo' },
   { key: 'quality', label: 'Checking photo quality' },
@@ -124,6 +146,19 @@ async function analyzeLeaf() {
   const resultEl = qs('diag-result');
   const btn = qs('analyze-btn');
   btn.disabled = true;
+
+  // STEP 0: quick on-device leaf check — reject obvious non-leaf photos
+  // (food, faces, objects) before any AI runs. A real leaf photo is mostly
+  // green; if almost nothing is green, don't waste AI calls on it.
+  if (selectedImgEl && selectedImgEl.complete && selectedImgEl.naturalWidth > 0) {
+    try {
+      if (!looksLikeLeaf(selectedImgEl)) {
+        btn.disabled = false;
+        resultEl.innerHTML = `<div class="diag-error"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i><strong>Image doesn't look like a plant leaf</strong><p>This image does not appear to contain a plant leaf. Please upload a clear leaf photo.</p></div>`;
+        return;
+      }
+    } catch (_) { /* check failed — continue to normal flow */ }
+  }
 
   resultEl.innerHTML = renderStages(0);
   await tick();
