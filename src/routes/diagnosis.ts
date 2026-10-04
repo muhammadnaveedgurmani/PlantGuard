@@ -107,13 +107,17 @@ diagnosis.post('/analyze', async (c) => {
   let aiOutcome: { raw: any; modelUsed: string; fallbackUsed: boolean } | undefined
   let engine: 'cnn' | 'llm' = 'llm'
   let cnnRaw: ReturnType<typeof cnnLabelToDiagnosisRaw> = null
+  // Vision calls (leaf gate + diagnosis fallback) use the vision provider;
+  // text calls (chatbot, library) use the main OpenAI-compatible provider.
+  const visionKey = c.env.VISION_API_KEY || c.env.OPENAI_API_KEY
+  const visionBase = c.env.VISION_BASE_URL || c.env.OPENAI_BASE_URL
   if (cnnEligible) {
     // LEAF GATE: the CNN is a closed-set classifier — it cannot say "not a
     // plant", so a food photo would be misdiagnosed with high confidence.
     // This tiny vision check runs before any CNN result is accepted.
     let isLeaf = false
     try {
-      isLeaf = await validateIsLeaf(c.env.OPENAI_API_KEY, c.env.OPENAI_BASE_URL, dataUrl, c.env.DB, sessionId)
+      isLeaf = await validateIsLeaf(visionKey, visionBase, dataUrl, c.env.DB, sessionId)
     } catch {
       isLeaf = false
     }
@@ -128,7 +132,7 @@ diagnosis.post('/analyze', async (c) => {
     engine = 'cnn'
   } else {
     try {
-      aiOutcome = await diagnoseLeafImage(c.env.OPENAI_API_KEY, c.env.OPENAI_BASE_URL, dataUrl, c.env.DB, sessionId)
+      aiOutcome = await diagnoseLeafImage(visionKey, visionBase, dataUrl, c.env.DB, sessionId)
     } catch (e: any) {
       return c.json({ error: `AI diagnosis failed: ${e.message || e}` }, 502)
     }

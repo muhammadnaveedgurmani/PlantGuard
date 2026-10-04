@@ -54,10 +54,17 @@ export type ToolSchema = {
 // Overridable per-deployment via AI_MODEL / AI_FALLBACK_MODEL env vars
 // (see configureAiModels, called from the aiModelConfig middleware).
 // Defaults live in src/config.ts.
-const aiModels = { primary: DEFAULT_AI_MODEL, fallback: DEFAULT_AI_FALLBACK_MODEL }
-export function configureAiModels(primary?: string, fallback?: string) {
+const aiModels = {
+  primary: DEFAULT_AI_MODEL,
+  fallback: DEFAULT_AI_FALLBACK_MODEL,
+  visionPrimary: DEFAULT_AI_MODEL,
+  visionFallback: DEFAULT_AI_FALLBACK_MODEL,
+}
+export function configureAiModels(primary?: string, fallback?: string, visionPrimary?: string, visionFallback?: string) {
   if (primary && primary.trim()) aiModels.primary = primary.trim()
   if (fallback && fallback.trim()) aiModels.fallback = fallback.trim()
+  if (visionPrimary && visionPrimary.trim()) aiModels.visionPrimary = visionPrimary.trim()
+  if (visionFallback && visionFallback.trim()) aiModels.visionFallback = visionFallback.trim()
 }
 
 // Optional observability context passed by callers. `db` is intentionally
@@ -136,9 +143,12 @@ async function callChatCompletionsRaw(
   messages: ChatMessage[],
   jsonMode: boolean,
   obs: ObservabilityContext,
-  tools?: ToolSchema[]
+  tools?: ToolSchema[],
+  useVisionModels = false
 ): Promise<RawCompletionResult> {
   const startedAt = Date.now()
+  const primaryModel = useVisionModels ? aiModels.visionPrimary : aiModels.primary
+  const fallbackModel = useVisionModels ? aiModels.visionFallback : aiModels.fallback
 
   const logResult = (args: {
     success: boolean
@@ -160,7 +170,7 @@ async function callChatCompletionsRaw(
       sessionId: obs.sessionId ?? null,
       latencyMs: Date.now() - startedAt,
       fallbackUsed: args.fallbackUsed,
-      fallbackModel: args.fallbackUsed ? aiModels.fallback : undefined,
+      fallbackModel: args.fallbackUsed ? fallbackModel : undefined,
       toolCallsUsed: args.toolCallsUsed,
       success: args.success,
       errorType: args.errorType,
@@ -172,44 +182,44 @@ async function callChatCompletionsRaw(
   }
 
   // Attempt 1: primary model
-  const primary = await requestOnce(apiKey, baseUrl, aiModels.primary, messages, jsonMode, tools)
+  const primary = await requestOnce(apiKey, baseUrl, primaryModel, messages, jsonMode, tools)
   if (primary.ok) {
     const toolCallsUsed = !!primary.toolCalls
     await logResult({
       success: true,
-      modelUsed: aiModels.primary,
+      modelUsed: primaryModel,
       fallbackUsed: false,
       toolCallsUsed,
       promptTokens: primary.usage.prompt_tokens,
       completionTokens: primary.usage.completion_tokens,
       totalTokens: primary.usage.total_tokens
     })
-    return { content: primary.content, toolCalls: primary.toolCalls, modelUsed: aiModels.primary, fallbackUsed: false }
+    return { content: primary.content, toolCalls: primary.toolCalls, modelUsed: primaryModel, fallbackUsed: false }
   }
 
-  console.error(`[ai-fallback] primary model "${aiModels.primary}" failed (${primary.errorType}), attempting fallback "${aiModels.fallback}"`)
+  console.error(`[ai-fallback] primary model "${primaryModel}" failed (${primary.errorType}), attempting fallback "${fallbackModel}"`)
 
   // Attempt 2: fallback model (single retry only -- Phase 7: "do not
   // endlessly retry", "avoid doubling cost unnecessarily")
-  const fallback = await requestOnce(apiKey, baseUrl, aiModels.fallback, messages, jsonMode, tools)
+  const fallback = await requestOnce(apiKey, baseUrl, fallbackModel, messages, jsonMode, tools)
   if (fallback.ok) {
     const toolCallsUsed = !!fallback.toolCalls
     await logResult({
       success: true,
-      modelUsed: aiModels.fallback,
+      modelUsed: fallbackModel,
       fallbackUsed: true,
       toolCallsUsed,
       promptTokens: fallback.usage.prompt_tokens,
       completionTokens: fallback.usage.completion_tokens,
       totalTokens: fallback.usage.total_tokens
     })
-    return { content: fallback.content, toolCalls: fallback.toolCalls, modelUsed: aiModels.fallback, fallbackUsed: true }
+    return { content: fallback.content, toolCalls: fallback.toolCalls, modelUsed: fallbackModel, fallbackUsed: true }
   }
 
   // Both failed -- log the final (fallback) failure and throw.
   await logResult({
     success: false,
-    modelUsed: aiModels.fallback,
+    modelUsed: fallbackModel,
     fallbackUsed: true,
     toolCallsUsed: false,
     errorType: fallback.errorType,
@@ -302,7 +312,9 @@ export async function diagnoseLeafImage(
       }
     ],
     true,
-    { db, requestType: 'diagnosis', promptVersion: DIAGNOSIS_PROMPT_VERSION, sessionId }
+    { db, requestType: 'diagnosis', promptVersion: DIAGNOSIS_PROMPT_VERSION, sessionId },
+    undefined,
+    true
   )
 
   if (!result.content) throw new Error('AI diagnosis returned no content')
@@ -337,7 +349,9 @@ export async function validateIsLeaf(
       }
     ],
     true,
-    { db, requestType: 'leaf_gate', promptVersion: 'v1', sessionId }
+    { db, requestType: 'leaf_gate', promptVersion: 'v1', sessionId },
+    undefined,
+    true
   )
   if (!result.content) throw new Error('Leaf gate returned no content')
   try {

@@ -10,6 +10,6 @@ import { configureAiModels } from '../ml/ai'
 // Extracted to src/middleware/aiModelConfig.ts during the Phase 2
 // restructure; previously inline in the app entry. Behavior is unchanged.
 export const applyAiModelConfig: MiddlewareHandler<{ Bindings: Bindings }> = async (c, next) => {
-  configureAiModels(c.env.AI_MODEL, c.env.AI_FALLBACK_MODEL)
+  configureAiModels(c.env.AI_MODEL, c.env.AI_FALLBACK_MODEL, c.env.VISION_MODEL, c.env.VISION_FALLBACK_MODEL)
   await next()
 }
