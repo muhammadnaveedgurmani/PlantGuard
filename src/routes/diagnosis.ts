@@ -107,42 +107,24 @@ diagnosis.post('/analyze', async (c) => {
   let aiOutcome: { raw: any; modelUsed: string; fallbackUsed: boolean } | undefined
   let engine: 'cnn' | 'llm' = 'llm'
   let cnnRaw: ReturnType<typeof cnnLabelToDiagnosisRaw> = null
-  // LEAF GATE: Gemini vision checks the photo is actually a leaf before the
-  // CNN result is accepted. Client-side green check runs first (instant);
-  // this is the real AI verification. Fail OPEN on API error (trust the
-  // client check) so a Gemini outage doesn't block real leaves.
+  // PRIMARY ENGINE: Gemini vision (accurate — actually sees the leaf).
+  // The on-device CNN (76.8%) is the fallback when Gemini is unreachable.
+  // Client-side green check already filtered obvious non-leaves.
   const geminiKey = c.env.GEMINI_API_KEY || ''
-  if (cnnEligible) {
-    // LEAF GATE: Gemini vision checks the photo is actually a leaf before the
-    // CNN result is accepted. Client-side green check runs first (instant);
-    // this is the real AI verification. Fail OPEN on API error (trust the
-    // client check) so a Gemini outage doesn't block real leaves.
-    if (geminiKey) {
-      let isLeaf: boolean | null = null
-      try {
-        isLeaf = await validateIsLeaf(geminiKey, '', dataUrl, c.env.DB, sessionId)
-      } catch (e) {
-        console.error('[leaf-gate] Gemini error, failing open:', (e as Error)?.message?.slice(0, 120))
-      }
-      if (isLeaf === false) {
-        return c.json({
-          is_leaf: false,
-          message: 'This image does not appear to contain a plant leaf. Please upload a clear leaf photo.'
-        })
-      }
-    }
-    // PRIMARY ENGINE: on-device CNN. No full LLM diagnosis call needed.
-    cnnRaw = cnnLabelToDiagnosisRaw(cnnPrediction, cnnConfidence)
-    engine = 'cnn'
-  } else {
-    if (!geminiKey) {
-      return c.json({ error: 'AI diagnosis unavailable (vision API not configured).' }, 502)
-    }
+  if (geminiKey) {
     try {
       aiOutcome = await diagnoseLeafImage(geminiKey, '', dataUrl, c.env.DB, sessionId)
-    } catch (e: any) {
-      return c.json({ error: `AI diagnosis failed: ${e.message || e}` }, 502)
+      engine = 'llm'
+    } catch (e) {
+      console.error('[diagnosis] Gemini failed, falling back to CNN:', (e as Error)?.message?.slice(0, 120))
+      aiOutcome = undefined
     }
+  }
+  if (!aiOutcome && cnnEligible) {
+    // FALLBACK: on-device CNN when Gemini is unavailable.
+    cnnRaw = cnnLabelToDiagnosisRaw(cnnPrediction, cnnConfidence)
+    engine = 'cnn'
+  } else if (!aiOutcome) {
   }
 
   // PHASE 6: deterministic guardrail validation of the structured output.
