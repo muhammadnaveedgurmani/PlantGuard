@@ -4,9 +4,29 @@ import { getOrCreateSessionId } from '../utils/session'
 import { diagnoseLeafImage, DIAGNOSIS_PROMPT_VERSION } from '../ml/ai'
 import { checkImageQuality, retakePhotoAdvice } from '../ml/imageQuality'
 import { validateDiagnosisRaw } from '../ml/validation'
+import { CNN_CLASSES, cnnLabelToDiagnosisRaw, CNN_THRESHOLD_DEFAULT } from '../ml/cnnLabels'
 import { checkRateLimit, getClientIp, rateLimitResponseBody, RATE_LIMITS } from '../utils/rateLimit'
 
 const diagnosis = new Hono<{ Bindings: Bindings }>()
+
+// Server-controlled CNN config. Threshold stays tunable without a frontend redeploy.
+const CNN_MODEL_VERSION = 'v1'
+const CNN_MODEL_URL = `/static/models/plantguard-cnn/${CNN_MODEL_VERSION}/model.json`
+const CNN_LABELS_URL = `/static/models/plantguard-cnn/${CNN_MODEL_VERSION}/labels.json`
+
+// GET /api/diagnosis/cnn-config -- no auth needed.
+// Tells the browser where the on-device model lives and which confidence
+// threshold qualifies a CNN result (below it -> vision-LLM fallback).
+diagnosis.get('/cnn-config', async (c) => {
+  return c.json({
+    enabled: true,
+    modelUrl: CNN_MODEL_URL,
+    labelsUrl: CNN_LABELS_URL,
+    threshold: CNN_THRESHOLD_DEFAULT,
+    version: CNN_MODEL_VERSION,
+    numClasses: CNN_CLASSES.length
+  })
+})
 
 // POST /api/diagnosis/analyze
 // Accepts multipart/form-data with field "image".
@@ -67,15 +87,42 @@ diagnosis.post('/analyze', async (c) => {
   const base64 = btoa(binary)
   const dataUrl = `data:${file.type};base64,${base64}`
 
-  let aiOutcome
-  try {
-    aiOutcome = await diagnoseLeafImage(c.env.OPENAI_API_KEY, c.env.OPENAI_BASE_URL, dataUrl, c.env.DB, sessionId)
-  } catch (e: any) {
-    return c.json({ error: `AI diagnosis failed: ${e.message || e}` }, 502)
+  // Optional on-device CNN prediction from the browser (see cnnClient.js).
+  // When present and above the server-controlled threshold, the expensive
+  // vision-LLM call is skipped entirely. Absent fields -> legacy behavior.
+  const cnnPrediction = typeof body['cnn_prediction'] === 'string' ? body['cnn_prediction'].trim() : ''
+  const cnnConfidenceRaw = body['cnn_confidence']
+  const cnnConfidence =
+    typeof cnnConfidenceRaw === 'string' && cnnConfidenceRaw !== ''
+      ? Number(cnnConfidenceRaw)
+      : typeof cnnConfidenceRaw === 'number'
+        ? cnnConfidenceRaw
+        : NaN
+  const cnnEligible =
+    cnnPrediction !== '' &&
+    Number.isFinite(cnnConfidence) &&
+    cnnConfidence >= CNN_THRESHOLD_DEFAULT &&
+    CNN_CLASSES.includes(cnnPrediction)
+
+  let aiOutcome: { raw: any; modelUsed: string; fallbackUsed: boolean } | undefined
+  let engine: 'cnn' | 'llm' = 'llm'
+  let cnnRaw: ReturnType<typeof cnnLabelToDiagnosisRaw> = null
+  if (cnnEligible) {
+    // PRIMARY ENGINE: on-device CNN. No LLM call, no API cost.
+    cnnRaw = cnnLabelToDiagnosisRaw(cnnPrediction, cnnConfidence)
+    engine = 'cnn'
+  } else {
+    try {
+      aiOutcome = await diagnoseLeafImage(c.env.OPENAI_API_KEY, c.env.OPENAI_BASE_URL, dataUrl, c.env.DB, sessionId)
+    } catch (e: any) {
+      return c.json({ error: `AI diagnosis failed: ${e.message || e}` }, 502)
+    }
   }
 
-  // PHASE 6: deterministic guardrail validation of the AI's structured output.
-  const validation = validateDiagnosisRaw(aiOutcome.raw)
+  // PHASE 6: deterministic guardrail validation of the structured output.
+  // For the CNN path the "raw" object is built deterministically from the
+  // predicted label, so validation only clamps/defaults safe fields.
+  const validation = validateDiagnosisRaw(engine === 'cnn' ? cnnRaw : aiOutcome!.raw)
   if (validation.status === 'failed' || !validation.value) {
     return c.json(
       {
@@ -109,8 +156,8 @@ diagnosis.post('/analyze', async (c) => {
     const insertRes = await c.env.DB.prepare(
       `INSERT INTO diagnoses
         (session_id, image_key, plant_name, disease_name, is_healthy, confidence, severity, symptoms, spread, treatment, prevention, raw_ai_response,
-         confidence_level, secondary_possibilities, image_quality_warnings, validation_status, prompt_version)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         confidence_level, secondary_possibilities, image_quality_warnings, validation_status, prompt_version, engine)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
       .bind(
         sessionId,
@@ -124,12 +171,13 @@ diagnosis.post('/analyze', async (c) => {
         JSON.stringify(result.spread),
         JSON.stringify(result.treatment),
         JSON.stringify(result.prevention),
-        JSON.stringify(result),
+        JSON.stringify(engine === 'cnn' ? { engine: 'cnn', cnn_prediction: cnnPrediction, cnn_confidence: cnnConfidence } : result),
         result.confidence_level,
         JSON.stringify(result.secondary_possibilities),
         JSON.stringify(qualityWarnings),
         validation.status,
-        DIAGNOSIS_PROMPT_VERSION
+        engine === 'cnn' ? `plantguard-cnn-${CNN_MODEL_VERSION}` : DIAGNOSIS_PROMPT_VERSION,
+        engine
       )
       .run()
     insertedId = (insertRes.meta as any)?.last_row_id ?? null
@@ -142,8 +190,9 @@ diagnosis.post('/analyze', async (c) => {
     id: insertedId,
     image_key: imageKey,
     image_quality_warnings: qualityWarnings,
-    model_used: aiOutcome.modelUsed,
-    fallback_used: aiOutcome.fallbackUsed
+    engine,
+    model_used: engine === 'cnn' ? `plantguard-cnn-${CNN_MODEL_VERSION}` : aiOutcome!.modelUsed,
+    fallback_used: engine === 'cnn' ? false : aiOutcome!.fallbackUsed
   })
 })
 

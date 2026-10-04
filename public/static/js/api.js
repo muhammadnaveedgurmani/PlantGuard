@@ -12,9 +12,15 @@ function unwrapError(e) {
 
 export const api = {
   // ---- Diagnosis ----
-  async analyzeLeaf(file) {
+  async analyzeLeaf(file, cnnResult) {
     const formData = new FormData();
     formData.append('image', file);
+    // Optional on-device CNN prediction: when the browser model is confident,
+    // the server skips the vision-LLM call. Absent -> legacy LLM path.
+    if (cnnResult && cnnResult.label && Number.isFinite(cnnResult.confidence)) {
+      formData.append('cnn_prediction', cnnResult.label);
+      formData.append('cnn_confidence', String(cnnResult.confidence));
+    }
     try {
       const { data } = await axios.post('/api/diagnosis/analyze', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
