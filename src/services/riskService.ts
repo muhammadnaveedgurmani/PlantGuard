@@ -10,7 +10,7 @@
 // scientific/agronomic authority; each result carries the explanation so a
 // user (or agronomist) can judge it, not just the alert.
 
-import type { WeatherForecast } from './weather'
+import type { WeatherForecast } from './weatherService'
 
 export type RiskLevel = 'low' | 'moderate' | 'high'
 

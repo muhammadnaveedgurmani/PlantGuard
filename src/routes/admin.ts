@@ -1,8 +1,11 @@
 import { Hono } from 'hono'
 import type { Bindings } from '../types'
-import { runEvaluation } from '../lib/evalHarness'
+import { runEvaluation } from '../ml/evalHarness'
+import { requireAdminAuth } from '../middleware/adminAuth'
 
 const admin = new Hono<{ Bindings: Bindings }>()
+
+admin.use(requireAdminAuth)
 
 // GET /api/admin/health -- Phase 32: health & monitoring.
 // Deliberately does a cheap D1 ping so "healthy" actually reflects DB

@@ -18,6 +18,7 @@
 // has already failed.
 
 import { logAiCall, type AiRequestType } from './aiObservability'
+import { DEFAULT_AI_FALLBACK_MODEL, DEFAULT_AI_MODEL } from '../config'
 
 export type ChatMessage = {
   role: 'system' | 'user' | 'assistant' | 'tool'
@@ -48,8 +49,16 @@ export type ToolSchema = {
 // Configurable model names (Phase 7: "do not hard-code unnecessary
 // provider-specific assumptions"). Primary stays the preferred model; the
 // fallback is only used after the primary attempt fails.
-const PRIMARY_MODEL = 'gpt-5'
-const FALLBACK_MODEL = 'gpt-5-mini'
+// Overridable per-deployment via AI_MODEL / AI_FALLBACK_MODEL env vars
+// (see configureAiModels, called from src/index.tsx middleware).
+// Overridable per-deployment via AI_MODEL / AI_FALLBACK_MODEL env vars
+// (see configureAiModels, called from the aiModelConfig middleware).
+// Defaults live in src/config.ts.
+const aiModels = { primary: DEFAULT_AI_MODEL, fallback: DEFAULT_AI_FALLBACK_MODEL }
+export function configureAiModels(primary?: string, fallback?: string) {
+  if (primary && primary.trim()) aiModels.primary = primary.trim()
+  if (fallback && fallback.trim()) aiModels.fallback = fallback.trim()
+}
 
 // Optional observability context passed by callers. `db` is intentionally
 // optional -- if it's not provided (or the insert fails), the AI call still
@@ -151,7 +160,7 @@ async function callChatCompletionsRaw(
       sessionId: obs.sessionId ?? null,
       latencyMs: Date.now() - startedAt,
       fallbackUsed: args.fallbackUsed,
-      fallbackModel: args.fallbackUsed ? FALLBACK_MODEL : undefined,
+      fallbackModel: args.fallbackUsed ? aiModels.fallback : undefined,
       toolCallsUsed: args.toolCallsUsed,
       success: args.success,
       errorType: args.errorType,
@@ -163,44 +172,44 @@ async function callChatCompletionsRaw(
   }
 
   // Attempt 1: primary model
-  const primary = await requestOnce(apiKey, baseUrl, PRIMARY_MODEL, messages, jsonMode, tools)
+  const primary = await requestOnce(apiKey, baseUrl, aiModels.primary, messages, jsonMode, tools)
   if (primary.ok) {
     const toolCallsUsed = !!primary.toolCalls
     await logResult({
       success: true,
-      modelUsed: PRIMARY_MODEL,
+      modelUsed: aiModels.primary,
       fallbackUsed: false,
       toolCallsUsed,
       promptTokens: primary.usage.prompt_tokens,
       completionTokens: primary.usage.completion_tokens,
       totalTokens: primary.usage.total_tokens
     })
-    return { content: primary.content, toolCalls: primary.toolCalls, modelUsed: PRIMARY_MODEL, fallbackUsed: false }
+    return { content: primary.content, toolCalls: primary.toolCalls, modelUsed: aiModels.primary, fallbackUsed: false }
   }
 
-  console.error(`[ai-fallback] primary model "${PRIMARY_MODEL}" failed (${primary.errorType}), attempting fallback "${FALLBACK_MODEL}"`)
+  console.error(`[ai-fallback] primary model "${aiModels.primary}" failed (${primary.errorType}), attempting fallback "${aiModels.fallback}"`)
 
   // Attempt 2: fallback model (single retry only -- Phase 7: "do not
   // endlessly retry", "avoid doubling cost unnecessarily")
-  const fallback = await requestOnce(apiKey, baseUrl, FALLBACK_MODEL, messages, jsonMode, tools)
+  const fallback = await requestOnce(apiKey, baseUrl, aiModels.fallback, messages, jsonMode, tools)
   if (fallback.ok) {
     const toolCallsUsed = !!fallback.toolCalls
     await logResult({
       success: true,
-      modelUsed: FALLBACK_MODEL,
+      modelUsed: aiModels.fallback,
       fallbackUsed: true,
       toolCallsUsed,
       promptTokens: fallback.usage.prompt_tokens,
       completionTokens: fallback.usage.completion_tokens,
       totalTokens: fallback.usage.total_tokens
     })
-    return { content: fallback.content, toolCalls: fallback.toolCalls, modelUsed: FALLBACK_MODEL, fallbackUsed: true }
+    return { content: fallback.content, toolCalls: fallback.toolCalls, modelUsed: aiModels.fallback, fallbackUsed: true }
   }
 
   // Both failed -- log the final (fallback) failure and throw.
   await logResult({
     success: false,
-    modelUsed: FALLBACK_MODEL,
+    modelUsed: aiModels.fallback,
     fallbackUsed: true,
     toolCallsUsed: false,
     errorType: fallback.errorType,

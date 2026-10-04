@@ -4,13 +4,20 @@
 import { navbarHtml, footerHtml, backLink, mainHeader, setupNavbarToggle } from '../components/layout.js';
 import { api } from '../api.js';
 import { showToast, qs } from '../utils.js';
-import { diagnosisResultHtml, notLeafHtml, imageRejectedHtml, errorStateHtml, rateLimitHtml } from '../components/diagnosisView.js';
+import { diagnosisResultHtml, notLeafHtml, imageRejectedHtml, errorStateHtml, rateLimitHtml, engineBadgeHtml } from '../components/diagnosisView.js';
 import { state } from '../state.js';
+import { predictLeaf, warmUpCnn } from '../cnn/cnnClient.js';
 
 let selectedFile = null;
+let selectedImgEl = null;
+
+// Warm up the on-device model in the background so first analysis is fast.
+// Failures are silent: the server vision-LLM path remains the fallback.
+try { warmUpCnn(); } catch (_) {}
 
 export function renderDiagnosis(app) {
   selectedFile = null;
+  selectedImgEl = null;
   app.innerHTML = `
   <div class="page-shell">
     ${navbarHtml('#/diagnosis')}
@@ -77,9 +84,11 @@ function onFileSelected(evt) {
 
 function handleSelectedFile(file) {
   selectedFile = file;
+  selectedImgEl = null;
   const reader = new FileReader();
   reader.onload = (e) => {
-    qs('preview-area').innerHTML = `<img class="upload-preview" src="${e.target.result}" alt="Selected leaf photo preview"/>`;
+    qs('preview-area').innerHTML = `<img class="upload-preview" id="cnn-source-img" src="${e.target.result}" alt="Selected leaf photo preview"/>`;
+    selectedImgEl = document.getElementById('cnn-source-img');
   };
   reader.readAsDataURL(file);
   qs('analyze-btn').disabled = false;
@@ -93,12 +102,15 @@ const STAGES = [
   { key: 'validate', label: 'Validating result' }
 ];
 
-function renderStages(activeIndex) {
+function renderStages(activeIndex, stage1Label) {
+  const stages = STAGES.map((s, i) =>
+    i === 1 && stage1Label ? { ...s, label: stage1Label } : s
+  );
   return `
   <div class="text-center" style="padding:var(--space-8) 0;">
     <div class="spinner"></div>
     <div class="processing-stages">
-      ${STAGES.map((s, i) => {
+      ${stages.map((s, i) => {
         const cls = i < activeIndex ? 'done' : i === activeIndex ? 'active' : '';
         const icon = i < activeIndex ? 'fa-check' : i === activeIndex ? 'fa-circle-notch fa-spin' : 'fa-circle';
         return `<div class="processing-stage ${cls}"><i class="fas ${icon}" aria-hidden="true"></i> ${s.label}</div>`;
@@ -115,11 +127,22 @@ async function analyzeLeaf() {
 
   resultEl.innerHTML = renderStages(0);
   await tick();
-  resultEl.innerHTML = renderStages(1);
-  await tick();
-  resultEl.innerHTML = renderStages(2);
 
-  const res = await api.analyzeLeaf(selectedFile);
+  // STEP 1: on-device CNN first (instant, free, private). If the model or
+  // CDN is unavailable this throws and we silently use the server path.
+  let cnn = null;
+  if (selectedImgEl && selectedImgEl.complete && selectedImgEl.naturalWidth > 0) {
+    resultEl.innerHTML = renderStages(1, 'On-device AI model');
+    await tick();
+    try {
+      cnn = await predictLeaf(selectedImgEl);
+    } catch (_) {
+      cnn = null;
+    }
+  }
+
+  resultEl.innerHTML = renderStages(2);
+  const res = await api.analyzeLeaf(selectedFile, cnn);
 
   if (!res.ok) {
     btn.disabled = false;
@@ -147,8 +170,12 @@ async function analyzeLeaf() {
   } else if (data.is_leaf === false) {
     resultEl.innerHTML = notLeafHtml(data.message);
   } else {
-    resultEl.innerHTML = diagnosisResultHtml(data);
-    if (data.id) {
+    // Honest provenance: which engine produced this result.
+    const badge = engineBadgeHtml(data.engine);
+    resultEl.innerHTML = badge + diagnosisResultHtml(data);
+    if (data.engine === 'llm' && cnn && cnn.confidence < (cnn.threshold || 0.7)) {
+      showToast('On-device confidence was low — verified with cloud AI');
+    } else if (data.id) {
       showToast('Diagnosis saved to your history');
     }
   }

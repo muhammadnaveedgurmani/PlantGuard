@@ -5,10 +5,12 @@ import { defineConfig } from 'vite'
 
 export default defineConfig({
   plugins: [
-    build(),
+    build({
+      entry: 'src/app.ts'
+    }),
     devServer({
       adapter,
-      entry: 'src/index.tsx'
+      entry: 'src/app.ts'
     })
   ]
 })

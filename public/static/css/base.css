@@ -1,5 +1,5 @@
 /* ============================================================
-   PlantGuard Design System — Base / Reset
+   PlantGuard Design System — Base / Reset (3D PREMIUM EDITION)
    Global resets, base element styles, and shared utility classes.
    Depends on tokens.css being loaded first.
    ============================================================ */
@@ -14,19 +14,37 @@ html {
 body {
   margin: 0;
   font-family: var(--font-family-base);
-  background: var(--surface-page);
+  background: var(--gradient-hero-mesh);
+  background-attachment: fixed;
   color: var(--color-neutral-800);
   font-size: var(--font-size-base);
   line-height: var(--line-height-normal);
   -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+::selection {
+  background: var(--color-accent-400);
+  color: var(--color-brand-950);
+}
+
+/* Slim premium scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--color-brand-300), var(--color-brand-500));
+  border-radius: var(--radius-full);
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-family-display);
-  color: var(--color-brand-700);
+  color: var(--color-brand-800);
   margin: 0 0 var(--space-3) 0;
   line-height: var(--line-height-tight);
   font-weight: var(--font-weight-bold);
+  letter-spacing: -0.015em;
 }
 
 p { margin: 0 0 var(--space-3) 0; color: var(--color-neutral-700); }
@@ -64,7 +82,7 @@ select:focus-visible,
   position: absolute;
   left: -9999px;
   top: 0;
-  background: var(--color-brand-700);
+  background: var(--gradient-brand-deep);
   color: white;
   padding: var(--space-2) var(--space-4);
   z-index: var(--z-modal);
@@ -130,7 +148,7 @@ select:focus-visible,
 .section { padding: var(--space-12) 0; }
 .section-title {
   font-size: var(--font-size-2xl);
-  color: var(--color-brand-700);
+  color: var(--color-brand-800);
   letter-spacing: -0.02em;
 }
 .section-subtitle {

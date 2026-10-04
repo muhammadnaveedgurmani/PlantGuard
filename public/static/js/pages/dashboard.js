@@ -10,8 +10,8 @@ export async function renderDashboard(app) {
     ${navbarHtml('#/home')}
     <main class="page-main">
       <div class="page-container">
-        <h1>Welcome back</h1>
-        <p class="text-muted">Diagnose plant issues, check risk conditions, and get guidance &mdash; all in one place.</p>
+        <h1>Plant Health Workspace</h1>
+        <p class="text-muted">Six tools, one place &mdash; diagnose, chat, check weather risk, browse the library, review history, and open reports.</p>
 
         <div class="dashboard-primary-action mt-4">
           <i class="fas fa-magnifying-glass cta-icon" aria-hidden="true"></i>
@@ -27,14 +27,14 @@ export async function renderDashboard(app) {
         <div class="dashboard-section-label">Recent Activity</div>
         <div id="dash-recent"><div class="skeleton" style="height:80px;"></div></div>
 
-        <div class="dashboard-section-label">More Tools</div>
+        <div class="dashboard-section-label">Core Functions</div>
         <div class="dash-grid grid-auto">
+          ${dashCard('fa-magnifying-glass', 'Diagnosis', 'Upload a leaf photo for instant AI disease detection', "navigate('#/diagnosis')")}
           ${dashCard('fa-comment-dots', 'AI Assistant', 'Ask any plant care question', "navigate('#/chatbot')")}
           ${dashCard('fa-cloud-sun', 'Weather', '7-day real forecast &amp; risk alerts', "navigate('#/weather')")}
-          ${dashCard('fa-book', 'Disease Library', 'Verified &amp; AI-generated disease info', "navigate('#/library')")}
-          ${dashCard('fa-seedling', 'Cultivation Tips', 'Best practices for any crop', "navigate('#/library?tab=cultivation')")}
-          ${dashCard('fa-clock-rotate-left', 'My History', 'Your past diagnosis records', "navigate('#/history')")}
-          ${dashCard('fa-users', 'Community', 'Share experiences with farmers', "navigate('#/community')")}
+          ${dashCard('fa-book', 'Library', 'Disease reference &amp; cultivation guidance', "navigate('#/library')")}
+          ${dashCard('fa-clock-rotate-left', 'History', 'Your past diagnosis records', "navigate('#/history')")}
+          ${dashCard('fa-file-lines', 'Reports', 'Open and print full diagnosis reports', "navigate('#/reports')")}
         </div>
       </div>
     </main>

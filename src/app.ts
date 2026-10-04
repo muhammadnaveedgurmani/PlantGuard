@@ -7,16 +7,13 @@ import weather from './routes/weather'
 import community from './routes/community'
 import library from './routes/library'
 import admin from './routes/admin'
+import { applyAiModelConfig } from './middleware/aiModelConfig'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
 // Inject secrets from process env fallback isn't needed on Cloudflare;
 // OPENAI_API_KEY / OPENAI_BASE_URL are bound via wrangler secrets / vars.
-app.use('*', async (c, next) => {
-  // Allow local dev (`npm run dev` with Vite) to pick up keys from process.env
-  // In production these come from Cloudflare secrets (c.env is already populated).
-  await next()
-})
+app.use('*', applyAiModelConfig)
 
 app.use('/static/*', serveStatic({ root: './public' }))
 
@@ -53,12 +50,16 @@ const INDEX_HTML = `<!DOCTYPE html>
   <link href="/static/css/components.css" rel="stylesheet">
   <link href="/static/css/layout.css" rel="stylesheet">
   <link href="/static/css/responsive.css" rel="stylesheet">
+  <link href="/static/css/effects.css" rel="stylesheet">
 </head>
 <body>
   <a href="#app" class="skip-link">Skip to main content</a>
   <div id="app"></div>
   <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"
+    integrity="sha384-eEu5CTj3qGvu9PdJuS+YlkNi7d2XxQROAFYOr59zgObtlcux1ae1Il3u7jvdCSWu"
+    crossorigin="anonymous"></script>
   <script type="module" src="/static/js/main.js"></script>
 </body>
 </html>`

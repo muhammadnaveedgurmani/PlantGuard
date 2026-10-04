@@ -1,8 +1,8 @@
 import { Hono } from 'hono'
 import type { Bindings } from '../types'
-import { detectLocationFromIp, geocodeCity, getRealWeatherForecast } from '../lib/weather'
-import { assessWeatherDiseaseRisk } from '../lib/riskEngine'
-import { getOrCreateSessionId } from '../lib/session'
+import { detectLocationFromIp, geocodeCity, getRealWeatherForecast } from '../services/weatherService'
+import { assessWeatherDiseaseRisk } from '../services/riskService'
+import { getOrCreateSessionId } from '../utils/session'
 
 const weather = new Hono<{ Bindings: Bindings }>()
 

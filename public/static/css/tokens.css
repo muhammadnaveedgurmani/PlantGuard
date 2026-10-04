@@ -1,12 +1,14 @@
 /* ============================================================
    PlantGuard Design System — Design Tokens
+   3D PREMIUM EDITION: layered depth shadows, gradient tokens,
+   glassmorphism surfaces, dimensional color story.
    Centralized colors, typography, spacing, radius, shadows,
    transitions, and breakpoints. All component/page CSS should
    reference these variables instead of hard-coded values.
    ============================================================ */
 
 :root {
-  /* ---- Color: Brand (agricultural green, professional not neon) ---- */
+  /* ---- Color: Brand (deep forest green, premium, dimensional) ---- */
   --color-brand-50:  #f0f9f4;
   --color-brand-100: #dbf0e3;
   --color-brand-200: #b6e1c8;
@@ -17,6 +19,13 @@
   --color-brand-700: #185939;
   --color-brand-800: #14432c;
   --color-brand-900: #0f3322;
+  --color-brand-950: #0a2417;
+
+  /* ---- Color: Accent (vibrant lime for 3D highlights/CTAs) ---- */
+  --color-accent-300: #bef264;
+  --color-accent-400: #a3e635;
+  --color-accent-500: #84cc16;
+  --color-accent-600: #65a30d;
 
   /* ---- Color: Neutral (UI surfaces, text) ---- */
   --color-neutral-0:   #ffffff;
@@ -59,6 +68,21 @@
   --surface-card-border: var(--color-neutral-200);
   --surface-sunken: var(--color-neutral-100);
 
+  /* ---- 3D Gradients ---- */
+  --gradient-brand-btn: linear-gradient(180deg, #2f8a5c 0%, #1f6f47 55%, #185939 100%);
+  --gradient-brand-btn-hover: linear-gradient(180deg, #359866 0%, #247a4e 55%, #1c6240 100%);
+  --gradient-brand-deep: linear-gradient(135deg, #14432c 0%, #0f3322 60%, #0a2417 100%);
+  --gradient-hero-mesh:
+    radial-gradient(600px 420px at 12% 8%, rgba(163, 230, 53, 0.22), transparent 60%),
+    radial-gradient(700px 500px at 88% 12%, rgba(79, 168, 122, 0.20), transparent 60%),
+    radial-gradient(800px 600px at 50% 110%, rgba(47, 138, 92, 0.14), transparent 65%),
+    linear-gradient(180deg, #f4fbf6 0%, #f8faf9 55%, #f1f4f2 100%);
+  --gradient-accent-glow: linear-gradient(135deg, #a3e635 0%, #4fa87a 100%);
+  --gradient-icon-tile: linear-gradient(145deg, #2f8a5c 0%, #185939 100%);
+  --gradient-icon-tile-light: linear-gradient(145deg, #e9f7ef 0%, #cdeeda 100%);
+  --gradient-card-sheen: linear-gradient(180deg, rgba(255,255,255,0.75) 0%, rgba(255,255,255,0) 22%);
+  --gradient-header-band: linear-gradient(120deg, #185939 0%, #14432c 55%, #0f3322 100%);
+
   /* ---- Typography ---- */
   --font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-family-display: 'Poppins', var(--font-family-base);
@@ -72,6 +96,7 @@
   --font-size-2xl: 1.75rem;   /* 28px */
   --font-size-3xl: 2.25rem;   /* 36px */
   --font-size-4xl: 2.75rem;   /* 44px */
+  --font-size-5xl: 3.5rem;    /* 56px */
 
   --font-weight-normal: 400;
   --font-weight-medium: 500;
@@ -101,25 +126,54 @@
   --radius-md: 10px;
   --radius-lg: 14px;
   --radius-xl: 20px;
+  --radius-2xl: 28px;
   --radius-full: 999px;
 
-  /* ---- Shadow (used sparingly -- Phase 17: avoid excessive shadows) ---- */
-  --shadow-sm: 0 1px 2px rgba(15, 30, 22, 0.06);
-  --shadow-md: 0 4px 12px rgba(15, 30, 22, 0.08);
-  --shadow-lg: 0 10px 28px rgba(15, 30, 22, 0.10);
-  --shadow-focus: 0 0 0 3px rgba(47, 138, 92, 0.35);
+  /* ---- 3D Depth Shadows (layered: contact + ambient + far) ---- */
+  --shadow-sm: 0 1px 2px rgba(15, 30, 22, 0.07), 0 2px 8px rgba(15, 30, 22, 0.05);
+  --shadow-md:
+    inset 0 1px 0 rgba(255, 255, 255, 0.65),
+    0 1px 2px rgba(15, 30, 22, 0.06),
+    0 6px 16px rgba(15, 30, 22, 0.08),
+    0 18px 40px rgba(15, 30, 22, 0.07);
+  --shadow-lg:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 2px 4px rgba(15, 30, 22, 0.06),
+    0 12px 28px rgba(15, 30, 22, 0.10),
+    0 32px 72px rgba(15, 30, 22, 0.10);
+  --shadow-xl:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    0 2px 6px rgba(15, 30, 22, 0.08),
+    0 20px 44px rgba(15, 30, 22, 0.14),
+    0 48px 110px rgba(15, 30, 22, 0.14);
+  --shadow-float:
+    0 2px 4px rgba(15, 30, 22, 0.08),
+    0 16px 36px rgba(15, 30, 22, 0.14),
+    0 40px 90px rgba(24, 89, 57, 0.18);
+  --shadow-btn:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -2px 0 rgba(10, 36, 23, 0.28),
+    0 4px 10px rgba(24, 89, 57, 0.35),
+    0 10px 24px rgba(24, 89, 57, 0.22);
+  --shadow-btn-pressed:
+    inset 0 2px 6px rgba(10, 36, 23, 0.35),
+    0 1px 3px rgba(24, 89, 57, 0.25);
+  --shadow-inset: inset 0 2px 6px rgba(15, 30, 22, 0.10), inset 0 -1px 0 rgba(255,255,255,0.7);
+  --shadow-focus: 0 0 0 3px rgba(132, 204, 22, 0.35);
 
   /* ---- Transitions ---- */
   --transition-fast: 120ms ease;
   --transition-base: 200ms ease;
   --transition-slow: 320ms ease;
+  --transition-lift: 260ms cubic-bezier(0.22, 0.9, 0.3, 1.2);
 
   /* ---- Layout ---- */
   --content-max-width: 1180px;
-  --navbar-height: 64px;
+  --navbar-height: 68px;
   --z-navbar: 1000;
   --z-modal: 2000;
   --z-toast: 3000;
+  --z-chat-widget: 4000;
 }
 
 /* Reduced motion: honor user preference (Phase 24 accessibility) */

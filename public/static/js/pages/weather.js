@@ -31,11 +31,15 @@ export async function renderWeather(app) {
   qs('city-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') fetchWeather(); });
 
   const detect = await api.detectLocation();
+  // Guard: the user may have navigated away while detection was in flight.
+  const cityInput = qs('city-input');
+  const contentEl = qs('weather-content');
+  if (!cityInput || !contentEl) return;
   if (detect.ok && detect.data.city) {
-    qs('city-input').value = detect.data.city;
+    cityInput.value = detect.data.city;
     await fetchWeather();
   } else {
-    qs('weather-content').innerHTML = `<div class="empty-state"><i class="fas fa-location-dot" aria-hidden="true"></i>Enter a city name to see the forecast.</div>`;
+    contentEl.innerHTML = `<div class="empty-state"><i class="fas fa-location-dot" aria-hidden="true"></i>Enter a city name to see the forecast.</div>`;
   }
 }
 

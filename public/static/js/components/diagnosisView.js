@@ -112,6 +112,24 @@ export function diagnosisResultHtml(data, opts = {}) {
   </div>`;
 }
 
+/** Honest provenance badge: which engine produced this diagnosis. */
+export function engineBadgeHtml(engine) {
+  if (engine === 'cnn') {
+    return `
+    <div class="callout callout-success mt-0" style="margin-bottom:var(--space-3);">
+      <i class="fas fa-microchip" aria-hidden="true"></i>
+      <div><strong>Diagnosed on-device</strong>
+      <p class="mt-0" style="color:inherit;font-size:var(--font-size-xs);">PlantGuard CNN v1 (MobileNetV2, 38 classes, 76.8% test accuracy). No cloud AI call was needed.</p></div>
+    </div>`;
+  }
+  return `
+    <div class="callout mt-0" style="margin-bottom:var(--space-3);">
+      <i class="fas fa-cloud" aria-hidden="true"></i>
+      <div><strong>Verified with cloud AI</strong>
+      <p class="mt-0" style="color:inherit;font-size:var(--font-size-xs);">On-device confidence was low, so this result was double-checked by our expert AI model.</p></div>
+    </div>`;
+}
+
 /** Renders the "not a plant leaf" rejection state. */
 export function notLeafHtml(message) {
   return `
