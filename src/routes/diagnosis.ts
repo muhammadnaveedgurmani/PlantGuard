@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import type { Bindings } from '../types'
 import { getOrCreateSessionId } from '../utils/session'
-import { diagnoseLeafImage, DIAGNOSIS_PROMPT_VERSION } from '../ml/ai'
+import { diagnoseLeafImage, validateIsLeaf, DIAGNOSIS_PROMPT_VERSION } from '../ml/ai'
 import { checkImageQuality, retakePhotoAdvice } from '../ml/imageQuality'
 import { validateDiagnosisRaw } from '../ml/validation'
 import { CNN_CLASSES, cnnLabelToDiagnosisRaw, CNN_THRESHOLD_DEFAULT } from '../ml/cnnLabels'
@@ -108,7 +108,22 @@ diagnosis.post('/analyze', async (c) => {
   let engine: 'cnn' | 'llm' = 'llm'
   let cnnRaw: ReturnType<typeof cnnLabelToDiagnosisRaw> = null
   if (cnnEligible) {
-    // PRIMARY ENGINE: on-device CNN. No LLM call, no API cost.
+    // LEAF GATE: the CNN is a closed-set classifier — it cannot say "not a
+    // plant", so a food photo would be misdiagnosed with high confidence.
+    // This tiny vision check runs before any CNN result is accepted.
+    let isLeaf = false
+    try {
+      isLeaf = await validateIsLeaf(c.env.OPENAI_API_KEY, c.env.OPENAI_BASE_URL, dataUrl, c.env.DB, sessionId)
+    } catch {
+      isLeaf = false
+    }
+    if (!isLeaf) {
+      return c.json({
+        is_leaf: false,
+        message: 'This image does not appear to contain a plant leaf. Please upload a clear leaf photo.'
+      })
+    }
+    // PRIMARY ENGINE: on-device CNN. No full LLM diagnosis call needed.
     cnnRaw = cnnLabelToDiagnosisRaw(cnnPrediction, cnnConfidence)
     engine = 'cnn'
   } else {
@@ -145,6 +160,7 @@ diagnosis.post('/analyze', async (c) => {
   // Store image in R2 (best-effort; diagnosis still returns if this fails)
   let imageKey: string | null = null
   try {
+    if (!c.env.IMAGES) throw new Error('R2 not bound')
     imageKey = `diagnoses/${sessionId}/${Date.now()}-${crypto.randomUUID()}.${file.type.split('/')[1] || 'jpg'}`
     await c.env.IMAGES.put(imageKey, arrayBuffer, { httpMetadata: { contentType: file.type } })
   } catch {
@@ -313,6 +329,7 @@ diagnosis.get('/image/*', async (c) => {
     .bind(key, sessionId)
     .first()
   if (!owns) return c.json({ error: 'Image not found.' }, 404)
+  if (!c.env.IMAGES) return c.notFound()
   const obj = await c.env.IMAGES.get(key)
   if (!obj) return c.notFound()
   return new Response(obj.body, {

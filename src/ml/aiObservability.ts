@@ -7,7 +7,7 @@
 // wrapped so a D1/logging failure is swallowed (and reported to console for
 // local `wrangler dev` visibility) instead of surfacing to the caller.
 
-export type AiRequestType = 'diagnosis' | 'chat' | 'library_cultivation' | 'library_disease'
+export type AiRequestType = 'diagnosis' | 'chat' | 'library_cultivation' | 'library_disease' | 'leaf_gate'
 
 export type AiLogParams = {
   db: D1Database

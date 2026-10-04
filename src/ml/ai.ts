@@ -309,6 +309,45 @@ export async function diagnoseLeafImage(
   return { raw: JSON.parse(result.content), modelUsed: result.modelUsed, fallbackUsed: result.fallbackUsed }
 }
 
+/**
+ * Lightweight leaf gate for the on-device CNN path.
+ * The CNN is a closed-set classifier (38 plant classes) — it cannot say
+ * "not a plant", so a food photo gets misdiagnosed with high confidence.
+ * This minimal vision call answers only "is this a plant leaf?" before
+ * any CNN result is accepted. Cheap: tiny prompt, tiny JSON reply.
+ */
+export async function validateIsLeaf(
+  apiKey: string,
+  baseUrl: string,
+  imageDataUrl: string,
+  db?: D1Database,
+  sessionId?: string | null
+): Promise<boolean> {
+  const result = await callChatCompletionsRaw(
+    apiKey,
+    baseUrl,
+    [
+      { role: 'system', content: 'You are an image filter. Reply with ONLY valid JSON: {"is_leaf": boolean}.' },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Does this photo show a plant leaf or plant part? Reply ONLY {"is_leaf": true} or {"is_leaf": false}.' },
+          { type: 'image_url', image_url: { url: imageDataUrl } }
+        ]
+      }
+    ],
+    true,
+    { db, requestType: 'leaf_gate', promptVersion: 'v1', sessionId }
+  )
+  if (!result.content) throw new Error('Leaf gate returned no content')
+  try {
+    return JSON.parse(result.content).is_leaf === true
+  } catch {
+    // Unparseable gate response: fail closed (treat as not a leaf).
+    return false
+  }
+}
+
 export const CHATBOT_PROMPT_VERSION = 'chatbot-v2'
 
 const CHATBOT_SYSTEM_PROMPT = `You are PlantGuard AI Assistant, a friendly and knowledgeable virtual agronomist and plant-care expert embedded in the PlantGuard app.

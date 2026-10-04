@@ -69,7 +69,7 @@ export function mountChatWidget() {
     <div id="pg-chat-panel-slot"></div>`;
   document.body.appendChild(root);
 
-  document.getElementById('pg-chat-bubble-btn').addEventListener('click', togglePanel);
+  makeBubbleDraggable();
 
   // Show the unread dot shortly after load to draw attention (once per page load).
   setTimeout(() => {
@@ -81,6 +81,86 @@ export function mountChatWidget() {
 
   syncChatbotPageVisibility();
   window.addEventListener('hashchange', syncChatbotPageVisibility);
+}
+
+/** Draggable bubble: drag anywhere on screen, tap still opens chat. Position persists. */
+function makeBubbleDraggable() {
+  const btn = document.getElementById('pg-chat-bubble-btn');
+  if (!btn) return;
+
+  // Restore saved position.
+  try {
+    const saved = JSON.parse(localStorage.getItem('pg-chat-bubble-pos') || 'null');
+    if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
+      positionBubble(btn, saved.x, saved.y);
+    }
+  } catch { /* ignore bad saved data */ }
+
+  let dragging = false;
+  let moved = false;
+  let startX = 0, startY = 0, baseX = 0, baseY = 0;
+
+  const currentPos = () => {
+    const r = btn.getBoundingClientRect();
+    return { x: r.left, y: r.top };
+  };
+
+  btn.addEventListener('pointerdown', (e) => {
+    dragging = true;
+    moved = false;
+    startX = e.clientX;
+    startY = e.clientY;
+    const p = currentPos();
+    baseX = p.x;
+    baseY = p.y;
+    btn.setPointerCapture(e.pointerId);
+  });
+
+  btn.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    if (Math.abs(dx) + Math.abs(dy) > 8) moved = true;
+    if (moved) positionBubble(btn, baseX + dx, baseY + dy);
+  });
+
+  const endDrag = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    if (moved) {
+      // Persist position.
+      const p = currentPos();
+      try { localStorage.setItem('pg-chat-bubble-pos', JSON.stringify({ x: p.x, y: p.y })); } catch { /* ignore */ }
+      e.preventDefault();
+      e.stopPropagation();
+    } else {
+      togglePanel();
+    }
+  };
+  btn.addEventListener('pointerup', endDrag);
+  btn.addEventListener('pointercancel', () => { dragging = false; });
+
+  // Keep bubble inside viewport on resize/orientation change.
+  window.addEventListener('resize', () => {
+    const p = currentPos();
+    positionBubble(btn, p.x, p.y);
+  });
+}
+
+/** Place the bubble at viewport coords, clamped inside the screen. */
+function positionBubble(btn, x, y) {
+  const size = btn.getBoundingClientRect();
+  const margin = 8;
+  const maxX = Math.max(margin, window.innerWidth - size.width - margin);
+  const maxY = Math.max(margin, window.innerHeight - size.height - margin);
+  const cx = Math.min(Math.max(margin, x), maxX);
+  const cy = Math.min(Math.max(margin, y), maxY);
+  btn.style.position = 'fixed';
+  btn.style.left = cx + 'px';
+  btn.style.top = cy + 'px';
+  btn.style.right = 'auto';
+  btn.style.bottom = 'auto';
+  btn.style.touchAction = 'none';
 }
 
 /** Hide the floating widget while on the dedicated chatbot page. */
