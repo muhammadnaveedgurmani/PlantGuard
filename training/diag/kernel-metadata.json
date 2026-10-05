@@ -1,0 +1,1 @@
+{"code_file":"diag.py","competition_sources":[],"dataset_sources":["abdallahalidev/plantvillage-dataset"],"enable_gpu":"false","enable_internet":"false","enable_tpu":"false","id":"muhammadnaveedg/pg-mount-diagnostic","is_private":"true","kernel_sources":["muhammadnaveedg/plantguard-cnn-training"],"kernel_type":"script","language":"python","title":"PG mount diagnostic"}

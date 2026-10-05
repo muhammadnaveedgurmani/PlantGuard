@@ -1,0 +1,9 @@
+# Minimal deps for the Kaggle GPU kernel.
+# NOTE: tensorflowjs is intentionally absent — TF.js/TFLite export runs on the
+# local CPU after artifacts are pulled (see run_all.py). `datasets` is
+# installed by run_all.py itself.
+tensorflow==2.21.0
+scikit-learn==1.9.1
+pillow==12.3.0
+numpy==2.1.3
+protobuf==6.31.1

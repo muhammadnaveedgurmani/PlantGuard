@@ -1,0 +1,15 @@
+# PlantGuard CNN training — pinned dependencies (verified together on Python 3.12).
+#
+# NOTE: the full `tensorflow` wheel (not tensorflow-cpu) so GPU builds work
+# wherever this file is used (Kaggle T4, Colab). It also runs on CPU-only
+# machines. The local .venv keeps working unchanged.
+tensorflow==2.21.0
+tensorflowjs==4.22.0
+scikit-learn==1.9.1
+pillow==12.3.0
+kaggle==2.2.4
+matplotlib==3.11.2
+numpy==2.1.3
+protobuf==6.31.1
+# tensorflowjs -> tensorflow_hub needs pkg_resources, removed in setuptools>=81
+setuptools<81
