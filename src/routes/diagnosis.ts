@@ -107,24 +107,33 @@ diagnosis.post('/analyze', async (c) => {
   let aiOutcome: { raw: any; modelUsed: string; fallbackUsed: boolean } | undefined
   let engine: 'cnn' | 'llm' = 'llm'
   let cnnRaw: ReturnType<typeof cnnLabelToDiagnosisRaw> = null
-  // PRIMARY ENGINE: Gemini vision (accurate — actually sees the leaf).
-  // The on-device CNN (76.8%) is the fallback when Gemini is unreachable.
-  // Client-side green check already filtered obvious non-leaves.
-  const geminiKey = c.env.GEMINI_API_KEY || ''
-  if (geminiKey) {
-    try {
-      aiOutcome = await diagnoseLeafImage(geminiKey, '', dataUrl, c.env.DB, sessionId)
-      engine = 'llm'
-    } catch (e) {
-      console.error('[diagnosis] Gemini failed, falling back to CNN:', (e as Error)?.message?.slice(0, 120))
-      aiOutcome = undefined
-    }
-  }
-  if (!aiOutcome && cnnEligible) {
-    // FALLBACK: on-device CNN when Gemini is unavailable.
+  // PRIMARY ENGINE: on-device PlantGuard CNN (MobileNetV2, 38 classes, 76.8% test).
+  // When the browser's CNN prediction meets the server-controlled confidence
+  // threshold, the expensive vision-LLM call is skipped entirely and the CNN
+  // result is used. Gemini vision is the fallback for low-confidence or
+  // missing CNN predictions.
+  if (cnnEligible) {
     cnnRaw = cnnLabelToDiagnosisRaw(cnnPrediction, cnnConfidence)
     engine = 'cnn'
-  } else if (!aiOutcome) {
+  } else {
+    const geminiKey = c.env.GEMINI_API_KEY || ''
+    if (geminiKey) {
+      try {
+        aiOutcome = await diagnoseLeafImage(geminiKey, '', dataUrl, c.env.DB, sessionId)
+        engine = 'llm'
+      } catch (e) {
+        console.error('[diagnosis] Gemini failed:', (e as Error)?.message?.slice(0, 120))
+        aiOutcome = undefined
+      }
+    }
+    if (!aiOutcome) {
+      return c.json(
+        {
+          error: 'Diagnosis is temporarily unavailable. Please try again with a clearer photo.',
+        },
+        502
+      )
+    }
   }
 
   // PHASE 6: deterministic guardrail validation of the structured output.
