@@ -1,5 +1,10 @@
 # PlantGuard CNN — Integration Plan
 
+> **Update 2026-10-05:** the project moved fully to the on-device CNN. The
+> vision-LLM fallback described below was removed from `src/routes/diagnosis.ts`:
+> below-threshold predictions are now answered low-confidence with a retake
+> prompt. No cloud model is consulted.
+
 Goal: make the trained MobileNetV2 the **primary** diagnosis engine, running
 **in the user's browser** via TensorFlow.js. The vision-LLM API becomes the
 **fallback** for low-confidence predictions. No existing API shapes break;

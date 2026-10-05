@@ -12,8 +12,9 @@ across 38 crop/disease classes. Training happens in two phases: first only the
 new classifier head learns (backbone frozen), then the top backbone layers are
 unfrozen for fine-tuning with a tiny learning rate. The trained model is
 exported to **TensorFlow.js** so it runs directly in the visitor's browser as
-PlantGuard's primary diagnosis engine, with the existing vision-LLM API kept as
-the fallback for low-confidence cases.
+PlantGuard's only diagnosis engine. When the on-device confidence is below
+0.70 the server asks for a clearer photo instead of guessing — no cloud
+model is consulted.
 
 ## Files
 
@@ -26,7 +27,7 @@ the fallback for low-confidence cases.
 | `export.py` | Converts to TensorFlow.js (`tfjs/`) + quantized TFLite (`plantguard_cnn.tflite`), with a TFLite sanity check and `export_manifest.json`. |
 | `make_notebook.py` | Generates `PlantGuard_CNN_Training.ipynb` from these exact scripts. |
 | `PlantGuard_CNN_Training.ipynb` | Self-contained Colab notebook: GPU check → install → Kaggle download → train → evaluate → export → download zip. |
-| `INTEGRATION_PLAN.md` | How the exported model plugs into the Cloudflare Workers app (browser-first inference, LLM fallback). |
+| `INTEGRATION_PLAN.md` | How the exported model plugs into the Cloudflare Workers app (on-device CNN inference, no cloud fallback). |
 | `requirements.txt` | Pinned Python dependencies. |
 
 ## Workflow
@@ -59,8 +60,8 @@ Published results for **PlantVillage + MobileNetV2 + two-phase fine-tuning**:
 Realistic expectation for this pipeline: **~92–96% test accuracy** on
 PlantVillage. Target bar: **≥95%**. Important caveat from the literature:
 on real field photos (not greenhouse PlantVillage images) accuracy drops to
-**~80%** — which is exactly why the vision-LLM fallback stays in the
-integration design.
+**~80%** — low-confidence photos are answered with a retake prompt instead
+of a cloud fallback, so the system never guesses.
 
 ## Notes
 

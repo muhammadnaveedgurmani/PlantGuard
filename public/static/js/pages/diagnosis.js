@@ -12,7 +12,8 @@ let selectedFile = null;
 let selectedImgEl = null;
 
 // Warm up the on-device model in the background so first analysis is fast.
-// Failures are silent: the server vision-LLM path remains the fallback.
+// Failures are silent: the server answers from the CNN fields it receives,
+// or low-confidence if the model could not run.
 try { warmUpCnn(); } catch (_) {}
 
 export function renderDiagnosis(app) {
@@ -164,7 +165,7 @@ async function analyzeLeaf() {
   await tick();
 
   // STEP 1: on-device CNN first (instant, free, private). If the model or
-  // CDN is unavailable this throws and we silently use the server path.
+  // CDN is unavailable this throws and the server answers low-confidence.
   let cnn = null;
   if (selectedImgEl && selectedImgEl.complete && selectedImgEl.naturalWidth > 0) {
     resultEl.innerHTML = renderStages(1, 'On-device AI model');
@@ -202,15 +203,15 @@ async function analyzeLeaf() {
   const data = res.data;
   if (data.error) {
     resultEl.innerHTML = errorStateHtml(data.error, 'retryAnalyzeLeaf');
+  } else if (data.low_confidence) {
+    resultEl.innerHTML = `<div class="diag-error"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i><strong>Not confident enough</strong><p>${data.message || 'The model was not confident about this photo. Please upload a clearer, closer photo of a single leaf and try again.'}</p></div>`;
   } else if (data.is_leaf === false) {
     resultEl.innerHTML = notLeafHtml(data.message);
   } else {
-    // Honest provenance: which engine produced this result.
+    // Honest provenance: the on-device CNN produced this result.
     const badge = engineBadgeHtml(data.engine);
     resultEl.innerHTML = badge + diagnosisResultHtml(data);
-    if (data.engine === 'llm' && cnn && cnn.confidence < (cnn.threshold || 0.7)) {
-      showToast('On-device confidence was low — verified with cloud AI');
-    } else if (data.id) {
+    if (data.id) {
       showToast('Diagnosis saved to your history');
     }
   }

@@ -1,7 +1,6 @@
 import { Hono } from 'hono'
 import type { Bindings } from '../types'
 import { getOrCreateSessionId } from '../utils/session'
-import { diagnoseLeafImage, validateIsLeaf, DIAGNOSIS_PROMPT_VERSION } from '../ml/ai'
 import { checkImageQuality, retakePhotoAdvice } from '../ml/imageQuality'
 import { validateDiagnosisRaw } from '../ml/validation'
 import { CNN_CLASSES, cnnLabelToDiagnosisRaw, CNN_THRESHOLD_DEFAULT } from '../ml/cnnLabels'
@@ -16,7 +15,8 @@ const CNN_LABELS_URL = `/static/models/plantguard-cnn/${CNN_MODEL_VERSION}/label
 
 // GET /api/diagnosis/cnn-config -- no auth needed.
 // Tells the browser where the on-device model lives and which confidence
-// threshold qualifies a CNN result (below it -> vision-LLM fallback).
+// threshold qualifies a CNN result (below it the server asks for a clearer
+// photo instead of guessing).
 diagnosis.get('/cnn-config', async (c) => {
   return c.json({
     enabled: true,
@@ -30,9 +30,10 @@ diagnosis.get('/cnn-config', async (c) => {
 
 // POST /api/diagnosis/analyze
 // Accepts multipart/form-data with field "image".
-// Pipeline: rate-limit -> image quality pre-check -> AI vision diagnosis
-// (with model fallback) -> deterministic guardrail validation -> R2 image
-// store -> D1 save -> response.
+// Pipeline: rate-limit -> image quality pre-check -> on-device CNN result
+// (sent by the browser) -> deterministic guardrail validation -> R2 image
+// store -> D1 save -> response. The CNN is the only diagnosis engine: no
+// cloud model is ever consulted.
 diagnosis.post('/analyze', async (c) => {
   const sessionId = getOrCreateSessionId(c)
 
@@ -78,18 +79,10 @@ diagnosis.post('/analyze', async (c) => {
   }
   const qualityWarnings = quality.issues.filter((i) => i.severity === 'warn').map((i) => i.message)
 
-  // Build a data URL for the vision model
-  let binary = ''
-  const chunkSize = 8192
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize))
-  }
-  const base64 = btoa(binary)
-  const dataUrl = `data:${file.type};base64,${base64}`
-
-  // Optional on-device CNN prediction from the browser (see cnnClient.js).
-  // When present and above the server-controlled threshold, the expensive
-  // vision-LLM call is skipped entirely. Absent fields -> legacy behavior.
+  // On-device CNN prediction from the browser (see cnnClient.js).
+  // The CNN is the project's only diagnosis engine: no cloud vision model
+  // is consulted. A missing or below-threshold prediction is answered with
+  // a low-confidence response asking for a clearer photo -- never a guess.
   const cnnPrediction = typeof body['cnn_prediction'] === 'string' ? body['cnn_prediction'].trim() : ''
   const cnnConfidenceRaw = body['cnn_confidence']
   const cnnConfidence =
@@ -104,42 +97,31 @@ diagnosis.post('/analyze', async (c) => {
     cnnConfidence >= CNN_THRESHOLD_DEFAULT &&
     CNN_CLASSES.includes(cnnPrediction)
 
-  let aiOutcome: { raw: any; modelUsed: string; fallbackUsed: boolean } | undefined
-  let engine: 'cnn' | 'llm' = 'llm'
+  let engine: 'cnn' = 'cnn'
   let cnnRaw: ReturnType<typeof cnnLabelToDiagnosisRaw> = null
-  // PRIMARY ENGINE: on-device PlantGuard CNN (MobileNetV2, 38 classes, 76.8% test).
-  // When the browser's CNN prediction meets the server-controlled confidence
-  // threshold, the expensive vision-LLM call is skipped entirely and the CNN
-  // result is used. Gemini vision is the fallback for low-confidence or
-  // missing CNN predictions.
+  // ONLY ENGINE: on-device PlantGuard CNN (MobileNetV2, 38 classes, 76.8% test).
+  // The project has moved fully to the owner's CNN: when the browser's
+  // prediction is missing or below the server-controlled confidence
+  // threshold, the request is answered low-confidence with a retake prompt.
   if (cnnEligible) {
     cnnRaw = cnnLabelToDiagnosisRaw(cnnPrediction, cnnConfidence)
-    engine = 'cnn'
   } else {
-    const geminiKey = c.env.GEMINI_API_KEY || ''
-    if (geminiKey) {
-      try {
-        aiOutcome = await diagnoseLeafImage(geminiKey, '', dataUrl, c.env.DB, sessionId)
-        engine = 'llm'
-      } catch (e) {
-        console.error('[diagnosis] Gemini failed:', (e as Error)?.message?.slice(0, 120))
-        aiOutcome = undefined
-      }
-    }
-    if (!aiOutcome) {
-      return c.json(
-        {
-          error: 'Diagnosis is temporarily unavailable. Please try again with a clearer photo.',
-        },
-        502
-      )
-    }
+    return c.json(
+      {
+        low_confidence: true,
+        engine: 'cnn',
+        confidence: Number.isFinite(cnnConfidence) ? Math.round(cnnConfidence * 1000) / 1000 : null,
+        message:
+          'The on-device model was not confident enough about this photo. Please upload a clearer, closer photo of a single leaf in good light and try again.'
+      },
+      200
+    )
   }
 
   // PHASE 6: deterministic guardrail validation of the structured output.
   // For the CNN path the "raw" object is built deterministically from the
   // predicted label, so validation only clamps/defaults safe fields.
-  const validation = validateDiagnosisRaw(engine === 'cnn' ? cnnRaw : aiOutcome!.raw)
+  const validation = validateDiagnosisRaw(cnnRaw)
   if (validation.status === 'failed' || !validation.value) {
     return c.json(
       {
@@ -189,12 +171,12 @@ diagnosis.post('/analyze', async (c) => {
         JSON.stringify(result.spread),
         JSON.stringify(result.treatment),
         JSON.stringify(result.prevention),
-        JSON.stringify(engine === 'cnn' ? { engine: 'cnn', cnn_prediction: cnnPrediction, cnn_confidence: cnnConfidence } : result),
+        JSON.stringify({ engine: 'cnn', cnn_prediction: cnnPrediction, cnn_confidence: cnnConfidence }),
         result.confidence_level,
         JSON.stringify(result.secondary_possibilities),
         JSON.stringify(qualityWarnings),
         validation.status,
-        engine === 'cnn' ? `plantguard-cnn-${CNN_MODEL_VERSION}` : DIAGNOSIS_PROMPT_VERSION,
+        `plantguard-cnn-${CNN_MODEL_VERSION}`,
         engine
       )
       .run()
@@ -209,8 +191,8 @@ diagnosis.post('/analyze', async (c) => {
     image_key: imageKey,
     image_quality_warnings: qualityWarnings,
     engine,
-    model_used: engine === 'cnn' ? `plantguard-cnn-${CNN_MODEL_VERSION}` : aiOutcome!.modelUsed,
-    fallback_used: engine === 'cnn' ? false : aiOutcome!.fallbackUsed
+    model_used: `plantguard-cnn-${CNN_MODEL_VERSION}`,
+    fallback_used: false
   })
 })
 
